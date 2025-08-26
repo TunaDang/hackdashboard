@@ -1,0 +1,11 @@
+{
+  "/api/*": {
+    "target": "http://nerds21.redmond.corp.microsoft.com:9000",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "debug",
+    "pathRewrite": {
+      "^/api": "/biz"
+    }
+  }
+}
