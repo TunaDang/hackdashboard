@@ -20,28 +20,9 @@
       <mat-sidenav opened mode="side" class="sidenav">
         <div class="sidenav-content">
           <h3>Categories ({{ categories.length }})</h3>
-          <mat-nav-list>
-            <mat-list-item 
-              *ngFor="let category of categories" 
-              (click)="selectCategory(category)"
-              [class.active]="selectedCategory === category.category">
-              <span>{{ category.category }} ({{ category.count }})</span>
-            </mat-list-item>
-            
-            <div *ngIf="selectedCategory" class="subcategories">
-              <ng-container *ngFor="let category of categories">
-                <div *ngIf="category.category === selectedCategory && category.subcategories && category.subcategories.length > 0">
-                  <mat-list-item 
-                    *ngFor="let sub of category.subcategories"
-                    (click)="selectSubcategory(sub)"
-                    [class.active]="selectedSubcategory === sub.category"
-                    class="subcategory-item">
-                    <span>{{ sub.category }} ({{ sub.count }})</span>
-                  </mat-list-item>
-                </div>
-              </ng-container>
-            </div>
-          </mat-nav-list>
+          <div class="category-tree">
+            <ng-container *ngTemplateOutlet="categoryTemplate; context: { categories: categories, level: 0 }"></ng-container>
+          </div>
         </div>
       </mat-sidenav>
 
@@ -90,5 +71,32 @@
     <p>Loading...</p>
   </div>
 </div>
+
+<ng-template #categoryTemplate let-categories="categories" let-level="level">
+  <div *ngFor="let category of categories" class="category-item" [style.margin-left.px]="level * 20">
+    <div class="category-row">
+      <button 
+        *ngIf="category.children && category.children.length > 0"
+        mat-icon-button 
+        class="expand-button"
+        (click)="toggleCategory(category)">
+        <mat-icon>{{ isCategoryExpanded(category) ? 'expand_less' : 'expand_more' }}</mat-icon>
+      </button>
+      
+      <button 
+        mat-button 
+        class="category-button"
+        [class.active]="isCategorySelected(category)"
+        (click)="selectCategory(category)">
+        {{ category.name }} ({{ category.count }})
+      </button>
+    </div>
+    
+    <div *ngIf="isCategoryExpanded(category) && category.children && category.children.length > 0" 
+         class="subcategories">
+      <ng-container *ngTemplateOutlet="categoryTemplate; context: { categories: category.children, level: level + 1 }"></ng-container>
+    </div>
+  </div>
+</ng-template>
 
 <router-outlet />

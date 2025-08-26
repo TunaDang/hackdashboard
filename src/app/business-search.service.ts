@@ -8,9 +8,12 @@ export interface ZipCity {
 }
 
 export interface Category {
-  category: string;
+  name: string;
   count: number;
-  subcategories?: Category[];
+  path: string[];
+  level: number;
+  children?: Category[];
+  businessUrls?: string[];
 }
 
 export interface Business {
@@ -21,6 +24,7 @@ export interface Business {
   phone?: string;
   rating?: number;
   website?: string;
+  yelpUrl?: string;
 }
 
 export interface BusinessResponse {
