@@ -10,6 +10,9 @@ import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatListModule } from '@angular/material/list';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
+import { ReactiveFormsModule, FormControl } from '@angular/forms';
+import { Observable, map, startWith } from 'rxjs';
 import { BusinessSearchService, ZipCity, Category, Business } from './business-search.service';
 
 @Component({
@@ -17,6 +20,7 @@ import { BusinessSearchService, ZipCity, Category, Business } from './business-s
   imports: [
     RouterOutlet, 
     FormsModule, 
+    ReactiveFormsModule,
     CommonModule,
     MatToolbarModule,
     MatInputModule,
@@ -25,13 +29,15 @@ import { BusinessSearchService, ZipCity, Category, Business } from './business-s
     MatSidenavModule,
     MatListModule,
     MatProgressSpinnerModule,
-    MatIconModule
+    MatIconModule,
+    MatAutocompleteModule
   ],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
 export class App {
   searchQuery = '';
+  searchControl = new FormControl('');
   loading = false;
   categories: Category[] = [];
   businesses: Business[] = [];
@@ -40,9 +46,55 @@ export class App {
   selectedCategoryPath: string[] = [];
   expandedCategories: Set<string> = new Set();
   apiCallInfo: string = '';
+  filteredOptions!: Observable<string[]>;
 
   constructor(private businessService: BusinessSearchService) {
     this.loadZipCities();
+    this.setupAutocomplete();
+  }
+
+  private setupAutocomplete() {
+    this.filteredOptions = this.searchControl.valueChanges.pipe(
+      startWith(''),
+      map(value => this._filter(value || ''))
+    );
+  }
+
+  private _filter(value: string): string[] {
+    const filterValue = value.toLowerCase();
+    if (filterValue.length < 2) {
+      return [];
+    }
+    
+    // Find matching cities
+    const matchingCities = this.zipCities
+      .filter(zc => {
+        if (!zc.city) return false;
+        return zc.city.toLowerCase().includes(filterValue);
+      })
+      .map(zc => {
+        // Format as "City, State" or just "City" if no state info
+        if (zc.city.includes(',')) {
+          return zc.city;
+        }
+        // Extract state from city name if available
+        const parts = zc.city.split(' ');
+        const lastPart = parts[parts.length - 1];
+        if (lastPart.length === 2 && lastPart.match(/^[A-Z]{2}$/)) {
+          const cityName = parts.slice(0, -1).join(' ');
+          return `${cityName}, ${lastPart}`;
+        }
+        return zc.city;
+      })
+      .slice(0, 10); // Limit to 10 suggestions
+    
+    // Remove duplicates
+    return [...new Set(matchingCities)];
+  }
+
+  onOptionSelected(option: string) {
+    this.searchQuery = option;
+    this.performSearch();
   }
 
   loadZipCities() {
@@ -73,7 +125,10 @@ export class App {
   }
 
   performSearch() {
-    if (!this.searchQuery.trim()) return;
+    const query = this.searchControl.value || this.searchQuery;
+    if (!query.trim()) return;
+    
+    this.searchQuery = query.trim();
 
     this.loading = true;
     this.resetState();

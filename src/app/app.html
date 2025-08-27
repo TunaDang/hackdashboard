@@ -9,9 +9,15 @@
           <mat-label>Enter zip code or city</mat-label>
           <input 
             matInput 
-            [(ngModel)]="searchQuery" 
+            [formControl]="searchControl"
+            [matAutocomplete]="auto"
             (keyup.enter)="performSearch()"
             placeholder="02138 or Cambridge">
+          <mat-autocomplete #auto="matAutocomplete" (optionSelected)="onOptionSelected($event.option.value)">
+            <mat-option *ngFor="let option of filteredOptions | async" [value]="option">
+              {{ option }}
+            </mat-option>
+          </mat-autocomplete>
         </mat-form-field>
         <button mat-raised-button color="accent" (click)="performSearch()" [disabled]="loading">
           Search
