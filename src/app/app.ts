@@ -39,6 +39,7 @@ export class App {
   zipCities: ZipCity[] = [];
   selectedCategoryPath: string[] = [];
   expandedCategories: Set<string> = new Set();
+  apiCallInfo: string = '';
 
   constructor(private businessService: BusinessSearchService) {
     this.loadZipCities();
@@ -95,6 +96,7 @@ export class App {
   }
 
   private searchByZipcode(zipcode: string) {
+    this.apiCallInfo = `API Call: GET /api/categories-by-zipcode?zipcode=${zipcode}`;
     this.businessService.getCategoriesByZipcode(zipcode).subscribe({
       next: (data) => {
         this.processApiResponse(data);
@@ -164,6 +166,7 @@ export class App {
   }
 
   private aggregateZipCodeResults(zipcodes: string[]) {
+    this.apiCallInfo = `API Calls: GET /api/categories-by-zipcode?zipcode=${zipcodes.join(', ')}`;
     const allResponses: any[] = [];
     let completedRequests = 0;
     

@@ -1,32 +1,50 @@
 <div class="business-search-app">
-  <mat-toolbar color="primary">
-    <mat-form-field appearance="outline" class="search-field">
-      <mat-label>Enter zip code or city</mat-label>
-      <input 
-        matInput 
-        [(ngModel)]="searchQuery" 
-        (keyup.enter)="performSearch()"
-        placeholder="02138 or Cambridge">
-    </mat-form-field>
-    <button mat-raised-button color="accent" (click)="performSearch()" [disabled]="loading">
-      Search
-    </button>
-    <span class="spacer"></span>
-    <span>Business Search</span>
-  </mat-toolbar>
+  <!-- Two Column Layout -->
+  <div class="main-layout">
+    <!-- Header Row -->
+    <div class="header-row">
+      <!-- Top Left: Search Bar -->
+      <div class="header-left">
+        <mat-form-field appearance="outline" class="search-field">
+          <mat-label>Enter zip code or city</mat-label>
+          <input 
+            matInput 
+            [(ngModel)]="searchQuery" 
+            (keyup.enter)="performSearch()"
+            placeholder="02138 or Cambridge">
+        </mat-form-field>
+        <button mat-raised-button color="accent" (click)="performSearch()" [disabled]="loading">
+          Search
+        </button>
+      </div>
+      
+      <!-- Top Right: Instructions/API Info -->
+      <div class="header-right">
+        <div *ngIf="!apiCallInfo" class="instructions">
+          <h3>2025 Hackathon Business Search</h3>
+          <p>Enter a zip code (like 02138) or city name (like Cambridge) in the search field to find businesses in that area.</p>
+        </div>
+        <div *ngIf="apiCallInfo" class="api-info">
+          <h4>Current API Call:</h4>
+          <code>{{ apiCallInfo }}</code>
+        </div>
+      </div>
+    </div>
 
-  <div class="content-container" *ngIf="categories.length > 0">
-    <mat-sidenav-container class="sidenav-container">
-      <mat-sidenav opened mode="side" class="sidenav">
-        <div class="sidenav-content">
+    <!-- Content Row -->
+    <div class="content-row" *ngIf="categories.length > 0">
+      <!-- Bottom Left: Categories -->
+      <div class="content-left">
+        <div class="categories-section">
           <h3>Categories ({{ categories.length }})</h3>
           <div class="category-tree">
             <ng-container *ngTemplateOutlet="categoryTemplate; context: { categories: categories, level: 0 }"></ng-container>
           </div>
         </div>
-      </mat-sidenav>
-
-      <mat-sidenav-content class="main-content">
+      </div>
+      
+      <!-- Bottom Right: Business Results -->
+      <div class="content-right">
         <div *ngIf="filteredBusinesses.length > 0" class="business-grid">
           <mat-card *ngFor="let business of filteredBusinesses" class="business-card">
             <mat-card-header>
@@ -51,21 +69,12 @@
             </mat-card-content>
           </mat-card>
         </div>
-      </mat-sidenav-content>
-    </mat-sidenav-container>
+      </div>
+    </div>
   </div>
 
-  <div *ngIf="categories.length === 0 && !loading" class="no-results">
-    <mat-card class="welcome-card">
-      <mat-card-header>
-        <mat-card-title>Welcome to Business Search</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        <p>Enter a zip code (like 02138) or city name (like Cambridge) in the search field above to find businesses in that area.</p>
-      </mat-card-content>
-    </mat-card>
-  </div>
 
+  <!-- Loading indicator -->
   <div *ngIf="loading" class="loading-container">
     <mat-spinner diameter="50"></mat-spinner>
     <p>Loading...</p>
