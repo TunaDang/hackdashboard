@@ -39,40 +39,28 @@
   width: 280px;
 }
 
-.search-field .mat-mdc-form-field-subscript-wrapper {
-  display: none;
+.search-field mat-label {
+  color: #fff;
 }
 
-.search-field .mat-mdc-text-field-wrapper {
-  background-color: rgba(255, 255, 255, 0.9) !important;
-  border-radius: 4px;
-}
-
-.search-field .mat-mdc-form-field-outline {
-  color: rgba(255, 255, 255, 0.8) !important;
-}
-
-.search-field .mat-mdc-form-field-outline-thick {
-  color: rgba(255, 255, 255, 0.95) !important;
-}
-
-.search-field .mat-mdc-form-field-outline-start,
-.search-field .mat-mdc-form-field-outline-end,
-.search-field .mat-mdc-form-field-outline-gap {
-  background-color: rgba(255, 255, 255, 0.9) !important;
+.search-field .mat-mdc-form-field-outline svg {
+  stroke: #fff !important;
 }
 
 .search-field input {
-  background-color: transparent !important;
-  color: #333 !important;
+  color: white !important;
+}
+
+.search-field input::placeholder {
+  color: rgba(255, 255, 255, 0.8) !important;
 }
 
 .search-field .mat-mdc-floating-label {
-  color: rgba(0, 0, 0, 0.6) !important;
+  color: white !important;
 }
 
 .search-field .mat-mdc-floating-label.mdc-floating-label--float-above {
-  color: rgba(255, 255, 255, 0.9) !important;
+  color: white !important;
 }
 
 /* Autocomplete panel styling */
@@ -136,12 +124,32 @@
 }
 
 .api-info code {
-  background: rgba(0,0,0,0.2);
-  padding: 4px 8px;
+  background: #f5f5f5;
+  color: #333;
+  padding: 10px;
   border-radius: 4px;
   font-size: 0.85em;
+  font-family: monospace;
   display: block;
   word-break: break-all;
+  margin-bottom: 8px;
+}
+
+.try-api-link {
+  color: #ffffff;
+  text-decoration: none;
+  background: #808080;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  border: 1px solid #666666;
+  transition: all 0.2s ease;
+}
+
+.try-api-link:hover {
+  background: #696969;
+  text-decoration: none;
+  color: #ffffff;
 }
 
 /* Content Row - Main Content Area */

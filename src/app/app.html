@@ -14,104 +14,135 @@
             (keyup.enter)="performSearch()"
             placeholder="02138 or Cambridge">
           <mat-autocomplete #auto="matAutocomplete" (optionSelected)="onOptionSelected($event.option.value)">
-            <mat-option *ngFor="let option of filteredOptions | async" [value]="option">
-              {{ option }}
-            </mat-option>
+            @for (option of filteredOptions(); track option) {
+              <mat-option [value]="option">
+                {{ option }}
+              </mat-option>
+            }
           </mat-autocomplete>
         </mat-form-field>
-        <button mat-raised-button color="accent" (click)="performSearch()" [disabled]="loading">
+        <button mat-raised-button color="accent" (click)="performSearch()" [disabled]="loading()">
           Search
         </button>
       </div>
       
       <!-- Top Right: Instructions/API Info -->
       <div class="header-right">
-        <div *ngIf="!apiCallInfo" class="instructions">
-          <h3>2025 Hackathon Business Search</h3>
-          <p>Enter a zip code (like 02138) or city name (like Cambridge) in the search field to find businesses in that area.</p>
-        </div>
-        <div *ngIf="apiCallInfo" class="api-info">
-          <h4>Current API Call:</h4>
-          <code>{{ apiCallInfo }}</code>
-        </div>
+        @if (!apiCallInfo()) {
+          <div class="instructions">
+            <h3>2025 Hackathon Business Search</h3>
+            <p>Enter a zip code (like 02138) or city name (like Cambridge) in the search field to find businesses in that area.</p>
+          </div>
+        }
+        @if (apiCallInfo()) {
+          <div class="api-info">
+            <h4>Current API Call:</h4>
+            <code>{{ apiCallInfo() }}</code>
+            <a [href]="getApiUrl()" target="_blank" class="try-api-link">Try API</a>
+          </div>
+        }
       </div>
     </div>
 
     <!-- Content Row -->
-    <div class="content-row" *ngIf="categories.length > 0">
-      <!-- Bottom Left: Categories -->
-      <div class="content-left">
-        <div class="categories-section">
-          <h3>Categories ({{ categories.length }})</h3>
-          <div class="category-tree">
-            <ng-container *ngTemplateOutlet="categoryTemplate; context: { categories: categories, level: 0 }"></ng-container>
+    @if (categories().length > 0) {
+      <div class="content-row">
+        <!-- Bottom Left: Categories -->
+        <div class="content-left">
+          <div class="categories-section">
+            <h3>Categories ({{ categories().length }})</h3>
+            <div class="category-tree">
+              <ng-container *ngTemplateOutlet="categoryTemplate; context: { categories: categories(), level: 0 }"></ng-container>
+            </div>
           </div>
         </div>
-      </div>
-      
-      <!-- Bottom Right: Business Results -->
-      <div class="content-right">
-        <div *ngIf="filteredBusinesses.length > 0" class="business-grid">
-          <mat-card *ngFor="let business of filteredBusinesses" class="business-card">
-            <mat-card-header>
-              <mat-card-title>{{ business.name }}</mat-card-title>
-              <mat-card-subtitle>{{ business.category }}</mat-card-subtitle>
-            </mat-card-header>
-            <mat-card-content>
-              <p *ngIf="business.subcategory"><strong>Type:</strong> {{ business.subcategory }}</p>
-              <p *ngIf="business.address"><strong>Address:</strong> {{ business.address }}</p>
-              <p *ngIf="business.phone"><strong>Phone:</strong> {{ business.phone }}</p>
-              <p *ngIf="business.rating"><strong>Rating:</strong> {{ business.rating }}/5</p>
-            </mat-card-content>
-            <mat-card-actions *ngIf="business.website">
-              <a mat-button [href]="business.website" target="_blank">Visit Website</a>
-            </mat-card-actions>
-          </mat-card>
+        
+        <!-- Bottom Right: Business Results -->
+        <div class="content-right">
+          @if (filteredBusinesses().length > 0) {
+            <div class="business-grid">
+              @for (business of filteredBusinesses(); track business.name) {
+                <mat-card class="business-card">
+                  <mat-card-header>
+                    <mat-card-title>{{ business.name }}</mat-card-title>
+                    <mat-card-subtitle>{{ business.category }}</mat-card-subtitle>
+                  </mat-card-header>
+                  <mat-card-content>
+                    @if (business.subcategory) {
+                      <p><strong>Type:</strong> {{ business.subcategory }}</p>
+                    }
+                    @if (business.address) {
+                      <p><strong>Address:</strong> {{ business.address }}</p>
+                    }
+                    @if (business.phone) {
+                      <p><strong>Phone:</strong> {{ business.phone }}</p>
+                    }
+                    @if (business.rating) {
+                      <p><strong>Rating:</strong> {{ business.rating }}/5</p>
+                    }
+                  </mat-card-content>
+                  @if (business.website) {
+                    <mat-card-actions>
+                      <a mat-button [href]="business.website" target="_blank">Visit Website</a>
+                    </mat-card-actions>
+                  }
+                </mat-card>
+              }
+            </div>
+          }
+          @if (filteredBusinesses().length === 0 && !loading()) {
+            <div class="no-businesses">
+              <mat-card>
+                <mat-card-content>
+                  <p>No businesses found. Try selecting a different category or search for another location.</p>
+                </mat-card-content>
+              </mat-card>
+            </div>
+          }
         </div>
-        <div *ngIf="filteredBusinesses.length === 0 && !loading" class="no-businesses">
-          <mat-card>
-            <mat-card-content>
-              <p>No businesses found. Try selecting a different category or search for another location.</p>
-            </mat-card-content>
-          </mat-card>
-        </div>
       </div>
-    </div>
+    }
   </div>
 
 
   <!-- Loading indicator -->
-  <div *ngIf="loading" class="loading-container">
-    <mat-spinner diameter="50"></mat-spinner>
-    <p>Loading...</p>
-  </div>
+  @if (loading()) {
+    <div class="loading-container">
+      <mat-spinner diameter="50"></mat-spinner>
+      <p>Loading...</p>
+    </div>
+  }
 </div>
 
 <ng-template #categoryTemplate let-categories="categories" let-level="level">
-  <div *ngFor="let category of categories" class="category-item" [style.margin-left.px]="level * 20">
-    <div class="category-row">
-      <button 
-        *ngIf="category.children && category.children.length > 0"
-        mat-icon-button 
-        class="expand-button"
-        (click)="toggleCategory(category)">
-        <mat-icon>{{ isCategoryExpanded(category) ? 'expand_less' : 'expand_more' }}</mat-icon>
-      </button>
+  @for (category of categories; track category.name) {
+    <div class="category-item" [style.margin-left.px]="level * 20">
+      <div class="category-row">
+        @if (category.children && category.children.length > 0) {
+          <button 
+            mat-icon-button 
+            class="expand-button"
+            (click)="toggleCategory(category)">
+            <mat-icon>{{ isCategoryExpanded(category) ? 'expand_less' : 'expand_more' }}</mat-icon>
+          </button>
+        }
+        
+        <button 
+          mat-button 
+          class="category-button"
+          [class.active]="isCategorySelected(category)"
+          (click)="selectCategory(category)">
+          {{ category.name }} ({{ category.count }})
+        </button>
+      </div>
       
-      <button 
-        mat-button 
-        class="category-button"
-        [class.active]="isCategorySelected(category)"
-        (click)="selectCategory(category)">
-        {{ category.name }} ({{ category.count }})
-      </button>
+      @if (isCategoryExpanded(category) && category.children && category.children.length > 0) {
+        <div class="subcategories">
+          <ng-container *ngTemplateOutlet="categoryTemplate; context: { categories: category.children, level: level + 1 }"></ng-container>
+        </div>
+      }
     </div>
-    
-    <div *ngIf="isCategoryExpanded(category) && category.children && category.children.length > 0" 
-         class="subcategories">
-      <ng-container *ngTemplateOutlet="categoryTemplate; context: { categories: category.children, level: level + 1 }"></ng-container>
-    </div>
-  </div>
+  }
 </ng-template>
 
 <router-outlet />

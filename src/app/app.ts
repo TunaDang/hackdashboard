@@ -1,63 +1,86 @@
-import { Component } from '@angular/core';
+import { Component, signal, computed, effect, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { FormsModule } from '@angular/forms';
-import { CommonModule } from '@angular/common';
-import { MatToolbarModule } from '@angular/material/toolbar';
+import { NgTemplateOutlet } from '@angular/common';
+import { ReactiveFormsModule, FormControl } from '@angular/forms';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatSidenavModule } from '@angular/material/sidenav';
-import { MatListModule } from '@angular/material/list';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
-import { ReactiveFormsModule, FormControl } from '@angular/forms';
-import { Observable, map, startWith } from 'rxjs';
+import { map, startWith } from 'rxjs';
 import { BusinessSearchService, ZipCity, Category, Business } from './business-search.service';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-root',
   imports: [
     RouterOutlet, 
-    FormsModule, 
     ReactiveFormsModule,
-    CommonModule,
-    MatToolbarModule,
     MatInputModule,
     MatButtonModule,
     MatCardModule,
-    MatSidenavModule,
-    MatListModule,
     MatProgressSpinnerModule,
     MatIconModule,
-    MatAutocompleteModule
+    MatAutocompleteModule,
+    NgTemplateOutlet
   ],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
 export class App {
-  searchQuery = '';
+  private businessService = inject(BusinessSearchService);
+  
+  // Signals for reactive state
+  searchQuery = signal('');
   searchControl = new FormControl('');
-  loading = false;
-  categories: Category[] = [];
-  businesses: Business[] = [];
-  filteredBusinesses: Business[] = [];
-  zipCities: ZipCity[] = [];
-  selectedCategoryPath: string[] = [];
-  expandedCategories: Set<string> = new Set();
-  apiCallInfo: string = '';
-  filteredOptions!: Observable<string[]>;
+  loading = signal(false);
+  categories = signal<Category[]>([]);
+  businesses = signal<Business[]>([]);
+  zipCities = signal<ZipCity[]>([]);
+  selectedCategoryPath = signal<string[]>([]);
+  expandedCategories = signal(new Set<string>());
+  apiCallInfo = signal('');
+  
+  // Computed signals
+  filteredBusinesses = computed(() => {
+    const allBusinesses = this.businesses();
+    const categoryPath = this.selectedCategoryPath();
+    
+    if (categoryPath.length === 0) {
+      return allBusinesses;
+    }
+    
+    return allBusinesses.filter(business => {
+      const businessCategory = business.category || '';
+      const selectedPath = categoryPath.join(' > ');
+      
+      return businessCategory === selectedPath || 
+             businessCategory.startsWith(selectedPath) ||
+             this.matchesCategoryPath(businessCategory, categoryPath);
+    });
+  });
 
-  constructor(private businessService: BusinessSearchService) {
+  // Convert form control to signal
+  searchControlValue = toSignal(this.searchControl.valueChanges.pipe(startWith('')), { initialValue: '' });
+  
+  // Computed signal for filtered options
+  filteredOptions = computed(() => {
+    const value = this.searchControlValue() || '';
+    return this._filter(value);
+  });
+
+  constructor() {
     this.loadZipCities();
-    this.setupAutocomplete();
-  }
-
-  private setupAutocomplete() {
-    this.filteredOptions = this.searchControl.valueChanges.pipe(
-      startWith(''),
-      map(value => this._filter(value || ''))
-    );
+    
+    // Effect to update API display when category changes
+    effect(() => {
+      const categoryPath = this.selectedCategoryPath();
+      const apiInfo = this.apiCallInfo();
+      if (categoryPath.length > 0 && apiInfo) {
+        this.updateApiDisplayWithCategory();
+      }
+    });
   }
 
   private _filter(value: string): string[] {
@@ -66,8 +89,9 @@ export class App {
       return [];
     }
     
-    // Find matching cities
-    const matchingCities = this.zipCities
+    // Find matching cities using signal
+    const zipCitiesData = this.zipCities();
+    const matchingCities = zipCitiesData
       .filter(zc => {
         if (!zc.city) return false;
         return zc.city.toLowerCase().includes(filterValue);
@@ -93,7 +117,7 @@ export class App {
   }
 
   onOptionSelected(option: string) {
-    this.searchQuery = option;
+    this.searchQuery.set(option);
     this.performSearch();
   }
 
@@ -105,78 +129,79 @@ export class App {
         console.log('ZipCities is array:', Array.isArray(data));
         
         if (Array.isArray(data)) {
-          this.zipCities = data;
+          this.zipCities.set(data);
         } else if (data && typeof data === 'object') {
           // Convert object to array if needed
-          this.zipCities = Object.keys(data).map(key => ({
+          const converted = Object.keys(data).map(key => ({
             zipcode: key,
-            city: data[key]
+            city: (data as any)[key]
           }));
+          this.zipCities.set(converted);
         } else {
-          this.zipCities = [];
+          this.zipCities.set([]);
         }
-        console.log('Processed zipCities:', this.zipCities);
+        console.log('Processed zipCities:', this.zipCities());
       },
       error: (error) => {
         console.error('Error loading zip cities:', error);
-        this.zipCities = [];
+        this.zipCities.set([]);
       }
     });
   }
 
   performSearch() {
-    const query = this.searchControl.value || this.searchQuery;
+    const query = this.searchControl.value || this.searchQuery();
     if (!query.trim()) return;
     
-    this.searchQuery = query.trim();
+    this.searchQuery.set(query.trim());
 
-    this.loading = true;
+    this.loading.set(true);
     this.resetState();
 
-    const isZipcode = /^\d{5}(-\d{4})?$/.test(this.searchQuery.trim());
+    const isZipcode = /^\d{5}(-\d{4})?$/.test(this.searchQuery().trim());
     
     if (isZipcode) {
-      this.searchByZipcode(this.searchQuery.trim());
+      this.searchByZipcode(this.searchQuery().trim());
     } else {
-      this.searchByCity(this.searchQuery.trim());
+      this.searchByCity(this.searchQuery().trim());
     }
   }
 
   private resetState() {
-    this.categories = [];
-    this.businesses = [];
-    this.filteredBusinesses = [];
-    this.selectedCategoryPath = [];
-    this.expandedCategories.clear();
+    this.categories.set([]);
+    this.businesses.set([]);
+    this.selectedCategoryPath.set([]);
+    this.expandedCategories.set(new Set());
   }
 
   private searchByZipcode(zipcode: string) {
-    this.apiCallInfo = `API Call: GET /api/categories-by-zipcode?zipcode=${zipcode}`;
+    this.apiCallInfo.set(`GET nerds21.redmond.corp.microsoft.com:9000/biz/categories?zipcode=${zipcode}`);
     this.businessService.getCategoriesByZipcode(zipcode).subscribe({
       next: (data) => {
         this.processApiResponse(data);
       },
       error: (error) => {
         console.error('Error searching by zipcode:', error);
-        this.loading = false;
+        this.loading.set(false);
       }
     });
   }
 
   private searchByCity(city: string) {
     console.log('Searching by city:', city);
-    console.log('ZipCities available:', this.zipCities);
+    const zipCitiesData = this.zipCities();
+    console.log('ZipCities available:', zipCitiesData);
     
     // Ensure zipCities is an array
-    if (!Array.isArray(this.zipCities)) {
-      console.error('zipCities is not an array:', this.zipCities);
-      this.loading = false;
+    if (!Array.isArray(zipCitiesData)) {
+      console.error('zipCities is not an array:', zipCitiesData);
+      this.loading.set(false);
       return;
     }
     
     // More flexible city matching - focus on main Cambridge entries
     const cityLower = city.toLowerCase().trim();
-    let matchingZipCities = this.zipCities.filter(zc => {
+    let matchingZipCities = zipCitiesData.filter(zc => {
       if (!zc.city) return false;
       const zcCity = zc.city.toLowerCase().trim();
       
@@ -205,7 +230,7 @@ export class App {
     
     if (matchingZipCities.length === 0) {
       console.log('No cities found matching:', city);
-      this.loading = false;
+      this.loading.set(false);
       return;
     }
 
@@ -221,7 +246,9 @@ export class App {
   }
 
   private aggregateZipCodeResults(zipcodes: string[]) {
-    this.apiCallInfo = `API Calls: GET /api/categories-by-zipcode?zipcode=${zipcodes.join(', ')}`;
+    // Display what we want the API to support in the future
+    const zipcodesJson = JSON.stringify(zipcodes);
+    this.apiCallInfo.set(`GET nerds21.redmond.corp.microsoft.com:9000/biz/categories?zipcodes=${zipcodesJson}`);
     const allResponses: any[] = [];
     let completedRequests = 0;
     
@@ -301,22 +328,22 @@ export class App {
     console.log('Response type:', typeof data);
     console.log('Keys:', Object.keys(data || {}));
     
+    let categories: Category[] = [];
+    let businesses: Business[] = [];
+
     if (data && typeof data === 'object') {
       // Handle categories first - they contain the business URLs
       if (data.categories && typeof data.categories === 'object') {
         console.log('Categories object:', data.categories);
-        this.categories = this.buildCategoryTree(data.categories);
+        categories = this.buildCategoryTree(data.categories);
         
         // Extract businesses from category data
-        this.businesses = this.extractBusinessesFromCategories(data.categories);
-      } else {
-        this.categories = [];
-        this.businesses = [];
+        businesses = this.extractBusinessesFromCategories(data.categories);
       }
 
       // Handle legacy businesses format if present
       if (Array.isArray(data.businesses)) {
-        this.businesses = [...this.businesses, ...data.businesses];
+        businesses = [...businesses, ...data.businesses];
       } else if (data.businesses && typeof data.businesses === 'object') {
         const legacyBusinesses = Object.keys(data.businesses).map(key => {
           const businessData = data.businesses[key];
@@ -332,20 +359,19 @@ export class App {
             ...businessData
           };
         });
-        this.businesses = [...this.businesses, ...legacyBusinesses];
+        businesses = [...businesses, ...legacyBusinesses];
       }
     } else {
       console.error('Unexpected data structure:', data);
-      this.categories = [];
-      this.businesses = [];
     }
 
-    // Remove duplicate businesses by URL
-    this.businesses = this.removeDuplicateBusinesses(this.businesses);
-    this.filteredBusinesses = this.businesses;
-    console.log('Processed categories:', this.categories);
-    console.log('Processed businesses:', this.businesses);
-    this.loading = false;
+    // Remove duplicate businesses by URL and update signals
+    const uniqueBusinesses = this.removeDuplicateBusinesses(businesses);
+    this.categories.set(categories);
+    this.businesses.set(uniqueBusinesses);
+    console.log('Processed categories:', categories);
+    console.log('Processed businesses:', uniqueBusinesses);
+    this.loading.set(false);
   }
 
   private extractBusinessesFromCategories(categoriesData: any): Business[] {
@@ -497,44 +523,52 @@ export class App {
 
   toggleCategory(category: Category) {
     const pathKey = category.path.join(' > ');
+    const currentExpanded = this.expandedCategories();
+    const newExpanded = new Set(currentExpanded);
     
-    if (this.expandedCategories.has(pathKey)) {
-      this.expandedCategories.delete(pathKey);
+    if (currentExpanded.has(pathKey)) {
+      newExpanded.delete(pathKey);
     } else {
-      this.expandedCategories.add(pathKey);
+      newExpanded.add(pathKey);
     }
+    
+    this.expandedCategories.set(newExpanded);
   }
 
   selectCategory(category: Category) {
-    this.selectedCategoryPath = [...category.path];
+    this.selectedCategoryPath.set([...category.path]);
     
-    // Filter businesses that match the selected category path
-    this.filteredBusinesses = this.businesses.filter(business => {
-      const businessCategory = business.category || '';
-      const selectedPath = category.path.join(' > ');
-      
-      // Exact path match
-      if (businessCategory === selectedPath) {
-        return true;
-      }
-      
-      // Check if business category starts with the selected path (for parent categories)
-      if (businessCategory.startsWith(selectedPath)) {
-        return true;
-      }
-      
-      // For parent categories, include all children
-      if (category.level < category.path.length - 1) {
-        const pathPrefix = category.path.slice(0, category.level + 1).join(' > ');
-        return businessCategory.startsWith(pathPrefix);
-      }
-      
-      // Fallback matching
-      return this.matchesCategoryPath(businessCategory, category.path);
-    });
+    // Auto-expand the category to show subcategories
+    if (category.children && category.children.length > 0) {
+      const pathKey = category.path.join(' > ');
+      const currentExpanded = this.expandedCategories();
+      const newExpanded = new Set(currentExpanded);
+      newExpanded.add(pathKey);
+      this.expandedCategories.set(newExpanded);
+    }
     
     console.log(`Selected category: ${category.path.join(' > ')}`);
-    console.log(`Filtered businesses: ${this.filteredBusinesses.length}`);
+    console.log(`Filtered businesses: ${this.filteredBusinesses().length}`);
+  }
+
+  private updateApiDisplayWithCategory() {
+    const apiInfo = this.apiCallInfo();
+    const categoryPath = this.selectedCategoryPath();
+    
+    if (apiInfo && categoryPath.length > 0) {
+      // Extract the base URL from the current API call
+      const baseMatch = apiInfo.match(/GET\s+([^?]+)/);
+      if (baseMatch) {
+        const baseUrl = baseMatch[1];
+        const zipMatch = apiInfo.match(/zipcode(?:s?)=([^&\s]+)/);
+        
+        if (zipMatch) {
+          const zipcodes = zipMatch[1];
+          const categoryPathJson = JSON.stringify([categoryPath]);
+          this.apiCallInfo.set(`GET ${baseUrl}?zipcode=${zipcodes}&categorypath=${categoryPathJson}`);
+        }
+      }
+    }
   }
 
   private matchesCategoryPath(businessCategory: string, categoryPath: string[]): boolean {
@@ -547,11 +581,28 @@ export class App {
 
   isCategoryExpanded(category: Category): boolean {
     const pathKey = category.path.join(' > ');
-    return this.expandedCategories.has(pathKey);
+    return this.expandedCategories().has(pathKey);
   }
 
   isCategorySelected(category: Category): boolean {
-    return this.selectedCategoryPath.length > 0 &&
-           this.selectedCategoryPath.join(' > ') === category.path.join(' > ');
+    const selectedPath = this.selectedCategoryPath();
+    return selectedPath.length > 0 &&
+           selectedPath.join(' > ') === category.path.join(' > ');
+  }
+
+  getApiUrl(): string {
+    const apiInfo = this.apiCallInfo();
+    if (!apiInfo) return '';
+    
+    // The apiCallInfo already contains the full URL we want to call
+    // Format: "GET nerds21.redmond.corp.microsoft.com:9000/biz/categories?zipcode=02138"
+    const match = apiInfo.match(/GET\s+(.+)$/);
+    if (match && match[1]) {
+      // Add http:// if not already present
+      const url = match[1];
+      return url.startsWith('http') ? url : `http://${url}`;
+    }
+    
+    return '';
   }
 }
