@@ -31,7 +31,6 @@ export interface Business {
 }
 
 export interface BusinessResponse {
-  categories: Category[];
   businesses: Business[];
 }
 

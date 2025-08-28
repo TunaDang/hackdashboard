@@ -242,7 +242,7 @@ export class App {
       this.businessService.getCategoriesByZipcode(zipcode).subscribe({
         next: (data) => {
           console.log(`Response for ${zipcode}:`, data);
-          if (data && (data.categories || data.businesses)) {
+          if (data && data.businesses) {
             allResponses.push(data);
           }
           completedRequests++;
@@ -266,31 +266,10 @@ export class App {
   }
 
   private mergeApiResponses(responses: any[]) {
-    const mergedCategories: any = {};
     const mergedBusinesses: any = {};
     
     responses.forEach(response => {
-      // Merge categories (JSON strings with business URL arrays)
-      if (response.categories && typeof response.categories === 'object') {
-        Object.keys(response.categories).forEach(key => {
-          const businessUrls = response.categories[key];
-          if (Array.isArray(businessUrls)) {
-            if (!mergedCategories[key]) {
-              mergedCategories[key] = [];
-            }
-            // Merge business URLs, avoiding duplicates
-            const existingUrls = new Set(mergedCategories[key]);
-            businessUrls.forEach(url => {
-              if (!existingUrls.has(url)) {
-                mergedCategories[key].push(url);
-                existingUrls.add(url);
-              }
-            });
-          }
-        });
-      }
-      
-      // Merge businesses (legacy format support)
+      // Merge businesses data
       if (response.businesses && typeof response.businesses === 'object') {
         Object.keys(response.businesses).forEach(key => {
           if (!mergedBusinesses[key]) {
@@ -301,7 +280,6 @@ export class App {
     });
     
     const mergedResponse = {
-      categories: mergedCategories,
       businesses: mergedBusinesses
     };
     
@@ -314,214 +292,68 @@ export class App {
     console.log('Response type:', typeof data);
     console.log('Keys:', Object.keys(data || {}));
     
-    let categories: Category[] = [];
     let businesses: Business[] = [];
 
     if (data && typeof data === 'object') {
-      // Handle businesses format first - this has the full business data
+      // Handle businesses format - this has the full business data
       if (data.businesses && typeof data.businesses === 'object' && !Array.isArray(data.businesses)) {
         console.log('Processing businesses object:', Object.keys(data.businesses).length, 'businesses');
-        const businessesFromData = Object.keys(data.businesses).map(yelpUrl => {
+        const businessesFromData: Business[] = [];
+        
+        Object.keys(data.businesses).forEach(yelpUrl => {
           const businessData = data.businesses[yelpUrl];
-          return {
-            name: businessData.name || 'Unknown Business',
-            category: this.formatCategories(businessData.categories),
-            address: businessData.address,
-            webDomain: businessData.webDomain,
-            description: businessData.description,
-            rating: businessData.rating,
-            reviewCount: businessData.reviewCount,
-            cityState: businessData.cityState,
-            country: businessData.country,
-            isClosed: businessData.isClosed,
-            yelpUrl: yelpUrl
-          };
+          const categoryPaths = this.formatCategories(businessData.categories);
+          
+          // Create separate business entry for each category path
+          categoryPaths.forEach(categoryPath => {
+            businessesFromData.push({
+              name: businessData.name || 'Unknown Business',
+              category: categoryPath,
+              address: businessData.address,
+              webDomain: businessData.webDomain,
+              description: businessData.description,
+              rating: businessData.rating,
+              reviewCount: businessData.reviewCount,
+              cityState: businessData.cityState,
+              country: businessData.country,
+              isClosed: businessData.isClosed,
+              yelpUrl: yelpUrl
+            });
+          });
         });
+        
         businesses = [...businesses, ...businessesFromData];
         console.log('Processed businesses with domains:', businessesFromData.filter(b => b.webDomain).length);
         console.log('Processed businesses with descriptions:', businessesFromData.filter(b => b.description).length);
+        console.log('Total business entries (with duplicates):', businessesFromData.length);
       } else if (Array.isArray(data.businesses)) {
         businesses = [...businesses, ...data.businesses];
-      }
-
-      // Handle categories - build the tree for filtering
-      if (data.categories && typeof data.categories === 'object') {
-        console.log('Categories object:', data.categories);
-        categories = this.buildCategoryTree(data.categories);
-        
-        // Only extract businesses from categories if we don't have businesses data
-        if (businesses.length === 0) {
-          console.log('No businesses found in main data, extracting from categories');
-          businesses = this.extractBusinessesFromCategories(data.categories);
-        }
       }
     } else {
       console.error('Unexpected data structure:', data);
     }
 
-    // Remove duplicate businesses by URL and update signals
-    const uniqueBusinesses = this.removeDuplicateBusinesses(businesses);
+    // Keep all business entries (including duplicates across categories) but clean invalid entries
+    const cleanedBusinesses = this.cleanBusinesses(businesses);
     
-    // Rebuild category tree with accurate counts based on actual deduplicated businesses
-    const correctedCategories = this.buildCategoryTreeFromBusinesses(uniqueBusinesses);
+    // Build category tree based on businesses data only
+    const categories = this.buildCategoryTreeFromBusinesses(cleanedBusinesses);
     
-    this.categories.set(correctedCategories);
-    this.businesses.set(uniqueBusinesses);
-    console.log('Processed categories:', correctedCategories);
-    console.log('Processed businesses:', uniqueBusinesses);
+    this.categories.set(categories);
+    this.businesses.set(cleanedBusinesses);
+    console.log('Processed categories:', categories);
+    console.log('Processed businesses:', cleanedBusinesses);
     this.loading.set(false);
   }
 
-  private extractBusinessesFromCategories(categoriesData: any): Business[] {
-    const businesses: Business[] = [];
-    const businessUrls = new Set<string>();
 
-    Object.keys(categoriesData).forEach(key => {
-      try {
-        const path = key.startsWith('[') ? JSON.parse(key) : [key];
-        const urls = Array.isArray(categoriesData[key]) ? categoriesData[key] : [];
-        
-        urls.forEach((url: string) => {
-          if (!businessUrls.has(url)) {
-            businessUrls.add(url);
-            const business = this.extractBusinessFromYelpUrl(url, path);
-            businesses.push(business);
-          }
-        });
-      } catch (error) {
-        console.error(`Error processing category ${key}:`, error);
-      }
-    });
-
-    return businesses;
-  }
-
-  private extractBusinessFromYelpUrl(yelpUrl: string, categoryPath: string[]): Business {
-    // Extract business name from Yelp URL
-    const urlParts = yelpUrl.split('/');
-    const bizPart = urlParts[urlParts.length - 1];
-    const businessName = bizPart
-      .split('-')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ')
-      .replace(/\d+$/, '') // Remove trailing numbers
-      .trim();
-
-    return {
-      name: businessName || 'Unknown Business',
-      category: categoryPath.join(' > '),
-      yelpUrl: yelpUrl,
-      // These would ideally come from a separate API call to get business details
-      address: undefined,
-      webDomain: undefined,
-      description: undefined,
-      rating: undefined,
-      reviewCount: undefined,
-      cityState: undefined,
-      country: undefined,
-      isClosed: undefined
-    };
-  }
-
-  private removeDuplicateBusinesses(businesses: Business[]): Business[] {
-    const seen = new Set<string>();
+  private cleanBusinesses(businesses: Business[]): Business[] {
     return businesses.filter(business => {
-      // Use yelpUrl as the primary key since it should be unique
-      const key = business.yelpUrl || `${business.name}-${business.address || 'no-address'}`;
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
+      // Keep all businesses but filter out invalid ones
+      return business.name && business.name !== 'Unknown Business' && business.yelpUrl;
     });
   }
 
-  private buildCategoryTree(categoriesData: any): Category[] {
-    const tree: Category[] = [];
-    const pathMap: Map<string, Category> = new Map();
-
-    Object.keys(categoriesData).forEach(key => {
-      console.log(`Processing category key: "${key}"`);
-      
-      let path: string[];
-      let businessUrls: string[] = [];
-      
-      try {
-        // Parse the JSON string to get the category array
-        if (key.startsWith('[') && key.endsWith(']')) {
-          path = JSON.parse(key);
-          console.log('Parsed JSON path:', path);
-        } else {
-          // Fallback to old parsing method
-          path = [key.trim()];
-        }
-        
-        // Get business URLs (the count is the number of businesses)
-        if (Array.isArray(categoriesData[key])) {
-          businessUrls = categoriesData[key];
-        }
-        
-        const count = businessUrls.length;
-        console.log(`Category path: ${path.join(' > ')} has ${count} businesses`);
-        
-        this.addCategoryToTree(tree, pathMap, path, count, businessUrls);
-        
-      } catch (error) {
-        console.error(`Error parsing category key "${key}":`, error);
-        // Fallback parsing
-        path = [key];
-        const count = Array.isArray(categoriesData[key]) ? categoriesData[key].length : 0;
-        this.addCategoryToTree(tree, pathMap, path, count, []);
-      }
-    });
-
-    console.log('Built category tree:', tree);
-    return tree;
-  }
-
-  private addCategoryToTree(tree: Category[], pathMap: Map<string, Category>, path: string[], count: number, businessUrls: string[] = []) {
-    let currentLevel = tree;
-    let currentPath: string[] = [];
-
-    for (let i = 0; i < path.length; i++) {
-      const categoryName = path[i];
-      currentPath = [...currentPath, categoryName];
-      const pathKey = currentPath.join(' > ');
-
-      let category = pathMap.get(pathKey);
-      
-      if (!category) {
-        category = {
-          name: categoryName,
-          count: i === path.length - 1 ? count : 0,
-          path: [...currentPath],
-          level: i,
-          children: [],
-          businessUrls: i === path.length - 1 ? businessUrls : []
-        };
-        
-        pathMap.set(pathKey, category);
-        currentLevel.push(category);
-      } else if (i === path.length - 1) {
-        // Update count and merge business URLs for leaf node
-        category.count += count;
-        if (category.businessUrls && businessUrls.length > 0) {
-          category.businessUrls = [...new Set([...category.businessUrls, ...businessUrls])]; // Remove duplicates
-        }
-      }
-
-      // Update parent counts
-      if (i < path.length - 1) {
-        category.count += count;
-      }
-
-      if (!category.children) {
-        category.children = [];
-      }
-      
-      currentLevel = category.children;
-    }
-  }
 
   toggleCategory(category: Category) {
     const pathKey = category.path.join(' > ');
@@ -615,12 +447,13 @@ export class App {
     return firstTwenty + (words.length > 20 ? '...' : '');
   }
 
-  private formatCategories(categories: string[][]): string {
-    if (!categories || !Array.isArray(categories) || categories.length === 0) return 'Other';
+  private formatCategories(categories: string[][]): string[] {
+    if (!categories || !Array.isArray(categories) || categories.length === 0) return ['Other'];
     
-    // Only use the first category path: [["shopping", "fashion", "shoes"], ["shopping", "fashion", "menscloth"]] -> "Shopping > Fashion > Shoes"
-    const firstCategoryPath = categories[0];
-    return firstCategoryPath.map(cat => cat.charAt(0).toUpperCase() + cat.slice(1)).join(' > ');
+    // Return all category paths so businesses can appear in multiple categories
+    return categories.map(categoryPath => 
+      categoryPath.map(cat => cat.charAt(0).toUpperCase() + cat.slice(1)).join(' > ')
+    );
   }
 
   private buildCategoryTreeFromBusinesses(businesses: Business[]): Category[] {
