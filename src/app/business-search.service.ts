@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, of } from 'rxjs';
 
 export interface ZipCity {
   zipcode: string;
@@ -45,7 +45,7 @@ export class BusinessSearchService {
   }
 
   getCategoriesByZipcode(zipcode: string): Observable<any> {
-    return this.http.get<BusinessResponse>(`${this.baseUrl}/categories?zipcode=${zipcode}`);
+    return this.http.get<any>(`${this.baseUrl}/categories?zipcode=${zipcode}`);
   }
 
   getCategoriesByCity(city: string, zipcodes: string[]): Observable<any> {
