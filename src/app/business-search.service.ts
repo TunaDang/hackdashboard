@@ -54,4 +54,8 @@ export class BusinessSearchService {
     const zipQuery = zipcodes.join(',');
     return this.http.get<any>(`${this.baseUrl}/categories?zipcode=${zipQuery}`);
   }
+
+  getBusinessData(yelpId: string): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/bizdata?id=${yelpId}`);
+  }
 }

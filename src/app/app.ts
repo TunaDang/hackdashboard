@@ -8,9 +8,11 @@ import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { map, startWith } from 'rxjs';
 import { BusinessSearchService, ZipCity, Category, Business } from './business-search.service';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { HtmlViewerDialogComponent } from './html-viewer-dialog.component';
 
 @Component({
   selector: 'app-root',
@@ -23,6 +25,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
     MatProgressSpinnerModule,
     MatIconModule,
     MatAutocompleteModule,
+    MatDialogModule,
     NgTemplateOutlet
   ],
   templateUrl: './app.html',
@@ -30,6 +33,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 })
 export class App {
   private businessService = inject(BusinessSearchService);
+  private dialog = inject(MatDialog);
   
   // Signals for reactive state
   searchQuery = signal('');
@@ -510,6 +514,55 @@ export class App {
     const words = description.split(' ');
     const firstTwenty = words.slice(0, 20).join(' ');
     return firstTwenty + (words.length > 20 ? '...' : '');
+  }
+
+  openHtmlViewer(business: Business): void {
+    if (!business.webDomain) {
+      return; // Don't open if no domain
+    }
+
+    // Extract Yelp ID from URL for API call
+    const yelpId = this.extractYelpIdFromUrl(business.yelpUrl || '');
+    
+    // Open dialog with placeholder data for now
+    const dialogRef = this.dialog.open(HtmlViewerDialogComponent, {
+      width: '90vw',
+      maxWidth: '900px',
+      data: {
+        businessName: business.name,
+        domain: business.webDomain,
+        yelpUrl: business.yelpUrl,
+        loading: false,
+        error: null,
+        htmlContent: null // Will show placeholder template
+      }
+    });
+
+    // In the future, when the endpoint is ready, this would make the API call:
+    // this.businessService.getBusinessData(yelpId).subscribe({
+    //   next: (data) => {
+    //     dialogRef.componentInstance.data = {
+    //       ...dialogRef.componentInstance.data,
+    //       loading: false,
+    //       htmlContent: data.domainHtml || data.html
+    //     };
+    //   },
+    //   error: (error) => {
+    //     dialogRef.componentInstance.data = {
+    //       ...dialogRef.componentInstance.data,
+    //       loading: false,
+    //       error: 'Failed to fetch HTML content: ' + error.message
+    //     };
+    //   }
+    // });
+  }
+
+  private extractYelpIdFromUrl(yelpUrl: string): string {
+    if (!yelpUrl) return '';
+    // Extract the business ID from Yelp URL
+    // Example: https://www.yelp.com/biz/business-name-location -> business-name-location
+    const matches = yelpUrl.match(/\/biz\/([^?]+)/);
+    return matches ? matches[1] : '';
   }
 
   private formatCategories(categories: string[][]): string[] {

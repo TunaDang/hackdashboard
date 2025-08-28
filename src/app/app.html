@@ -86,6 +86,7 @@
                     }
                     @if (business.webDomain) {
                       <a mat-button [href]="'https://' + business.webDomain" target="_blank">Visit Domain</a>
+                      <button mat-raised-button color="accent" (click)="openHtmlViewer(business)">Get HTML</button>
                     }
                   </mat-card-actions>
                 </mat-card>
