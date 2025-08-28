@@ -36,9 +36,11 @@
         }
         @if (apiCallInfo()) {
           <div class="api-info">
-            <h4>Current API Call:</h4>
-            <code>{{ apiCallInfo() }}</code>
-            <a [href]="getApiUrl()" target="_blank" class="try-api-link">Try API</a>
+            <div class="api-row">
+              <span class="api-label">Current API Call:</span>
+              <code class="api-url">{{ apiCallInfo() }}</code>
+              <a [href]="getApiUrl()" target="_blank" class="try-api-link">Try API</a>
+            </div>
           </div>
         }
       </div>
