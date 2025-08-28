@@ -48,10 +48,11 @@ export class App {
     const categoryPath = this.selectedCategoryPath();
     
     if (categoryPath.length === 0) {
-      return allBusinesses;
+      // When no category is selected, show all businesses without deduplication
+      return allBusinesses.map(business => this.decodeBusinessName(business));
     }
     
-    return allBusinesses.filter(business => {
+    const matchingBusinesses = allBusinesses.filter(business => {
       const businessCategory = business.category || '';
       const selectedPath = categoryPath.join(' > ');
       
@@ -59,6 +60,9 @@ export class App {
              businessCategory.startsWith(selectedPath) ||
              this.matchesCategoryPath(businessCategory, categoryPath);
     });
+    
+    // Only deduplicate when a category is selected
+    return this.deduplicateBusinesses(matchingBusinesses);
   });
 
   // Convert form control to signal
@@ -354,6 +358,67 @@ export class App {
     });
   }
 
+  private deduplicateBusinesses(businesses: Business[]): Business[] {
+    const businessMap = new Map<string, Business>();
+    
+    businesses.forEach(business => {
+      const decodedBusiness = this.decodeBusinessName(business);
+      const key = decodedBusiness.yelpUrl || `${decodedBusiness.name}-${decodedBusiness.address || 'no-address'}`;
+      
+      if (businessMap.has(key)) {
+        // Combine category paths for same business
+        const existingBusiness = businessMap.get(key)!;
+        const existingCategories = existingBusiness.category || '';
+        const newCategory = decodedBusiness.category || '';
+        
+        // Combine categories with comma separation, avoiding duplicates
+        const categoriesSet = new Set([
+          ...existingCategories.split(', ').filter(cat => cat.trim()),
+          ...newCategory.split(', ').filter(cat => cat.trim())
+        ]);
+        
+        existingBusiness.category = Array.from(categoriesSet).join(', ');
+      } else {
+        businessMap.set(key, decodedBusiness);
+      }
+    });
+    
+    return Array.from(businessMap.values());
+  }
+
+  private decodeHtmlEntities(text: string): string {
+    const entityMap: { [key: string]: string } = {
+      '&#x27;': "'",
+      '&apos;': "'",
+      '&quot;': '"',
+      '&lt;': '<',
+      '&gt;': '>',
+      '&amp;': '&',
+      '&#39;': "'",
+      '&#34;': '"'
+    };
+    
+    return text.replace(/&#x27;|&apos;|&quot;|&lt;|&gt;|&amp;|&#39;|&#34;/g, (match) => {
+      return entityMap[match] || match;
+    });
+  }
+
+  private decodeBusinessName(business: Business): Business {
+    const decodedBusiness = { ...business };
+    if (decodedBusiness.name) {
+      try {
+        // First URL decode
+        decodedBusiness.name = decodeURIComponent(decodedBusiness.name.replace(/\+/g, ' '));
+        // Then HTML entity decode
+        decodedBusiness.name = this.decodeHtmlEntities(decodedBusiness.name);
+      } catch (error) {
+        // If decoding fails, keep original name
+        console.warn('Failed to decode business name:', decodedBusiness.name, error);
+      }
+    }
+    return decodedBusiness;
+  }
+
 
   toggleCategory(category: Category) {
     const pathKey = category.path.join(' > ');
@@ -516,6 +581,8 @@ export class App {
         
         pathMap.set(pathKey, category);
         currentLevel.push(category);
+        // Sort alphabetically after adding
+        currentLevel.sort((a, b) => a.name.localeCompare(b.name));
       } else if (i === pathParts.length - 1) {
         // Update the count for leaf node
         category.count = count;
@@ -535,10 +602,15 @@ export class App {
   private updateParentCounts(categories: Category[]) {
     categories.forEach(category => {
       if (category.children && category.children.length > 0) {
+        // Sort children alphabetically
+        category.children.sort((a, b) => a.name.localeCompare(b.name));
         this.updateParentCounts(category.children);
         // Parent count is sum of all children counts
         category.count = category.children.reduce((sum, child) => sum + child.count, 0);
       }
     });
+    
+    // Sort the current level alphabetically
+    categories.sort((a, b) => a.name.localeCompare(b.name));
   }
 }
