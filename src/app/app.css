@@ -193,12 +193,28 @@
 }
 
 .business-card {
-  max-width: 350px;
+  max-width: 450px;
+  min-height: 280px;
   transition: box-shadow 0.2s ease;
 }
 
 .business-card:hover {
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.business-card mat-card-content {
+  padding-bottom: 16px;
+}
+
+.business-card mat-card-content p {
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.business-card .description {
+  font-style: italic;
+  color: #666;
+  margin-top: 8px;
 }
 
 /* Category Tree Styles */

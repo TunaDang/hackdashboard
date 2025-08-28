@@ -19,11 +19,14 @@ export interface Category {
 export interface Business {
   name: string;
   category: string;
-  subcategory?: string;
   address?: string;
-  phone?: string;
+  webDomain?: string;
+  description?: string;
   rating?: number;
-  website?: string;
+  reviewCount?: string;
+  cityState?: string;
+  country?: string;
+  isClosed?: boolean;
   yelpUrl?: string;
 }
 

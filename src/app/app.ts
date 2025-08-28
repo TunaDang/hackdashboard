@@ -205,11 +205,6 @@ export class App {
       if (!zc.city) return false;
       const zcCity = zc.city.toLowerCase().trim();
       
-      // For Cambridge, prioritize MA entries first
-      if (cityLower.includes('cambridge')) {
-        return zcCity.includes('cambridge');
-      }
-      
       // Try exact match, contains, or starts with
       return zcCity === cityLower || 
              zcCity.includes(cityLower) || 
@@ -218,15 +213,6 @@ export class App {
     });
     
     console.log('Matching zip cities:', matchingZipCities);
-    
-    // If we have too many matches (like multiple Cambridge cities), prefer MA ones
-    if (matchingZipCities.length > 10 && cityLower.includes('cambridge')) {
-      const maEntries = matchingZipCities.filter(zc => zc.city.includes('MA'));
-      if (maEntries.length > 0) {
-        console.log('Using MA entries only:', maEntries);
-        matchingZipCities = maEntries;
-      }
-    }
     
     if (matchingZipCities.length === 0) {
       console.log('No cities found matching:', city);
@@ -332,34 +318,42 @@ export class App {
     let businesses: Business[] = [];
 
     if (data && typeof data === 'object') {
-      // Handle categories first - they contain the business URLs
+      // Handle businesses format first - this has the full business data
+      if (data.businesses && typeof data.businesses === 'object' && !Array.isArray(data.businesses)) {
+        console.log('Processing businesses object:', Object.keys(data.businesses).length, 'businesses');
+        const businessesFromData = Object.keys(data.businesses).map(yelpUrl => {
+          const businessData = data.businesses[yelpUrl];
+          return {
+            name: businessData.name || 'Unknown Business',
+            category: this.formatCategories(businessData.categories),
+            address: businessData.address,
+            webDomain: businessData.webDomain,
+            description: businessData.description,
+            rating: businessData.rating,
+            reviewCount: businessData.reviewCount,
+            cityState: businessData.cityState,
+            country: businessData.country,
+            isClosed: businessData.isClosed,
+            yelpUrl: yelpUrl
+          };
+        });
+        businesses = [...businesses, ...businessesFromData];
+        console.log('Processed businesses with domains:', businessesFromData.filter(b => b.webDomain).length);
+        console.log('Processed businesses with descriptions:', businessesFromData.filter(b => b.description).length);
+      } else if (Array.isArray(data.businesses)) {
+        businesses = [...businesses, ...data.businesses];
+      }
+
+      // Handle categories - build the tree for filtering
       if (data.categories && typeof data.categories === 'object') {
         console.log('Categories object:', data.categories);
         categories = this.buildCategoryTree(data.categories);
         
-        // Extract businesses from category data
-        businesses = this.extractBusinessesFromCategories(data.categories);
-      }
-
-      // Handle legacy businesses format if present
-      if (Array.isArray(data.businesses)) {
-        businesses = [...businesses, ...data.businesses];
-      } else if (data.businesses && typeof data.businesses === 'object') {
-        const legacyBusinesses = Object.keys(data.businesses).map(key => {
-          const businessData = data.businesses[key];
-          return {
-            name: businessData.name || key,
-            category: businessData.category || 'Other',
-            subcategory: businessData.subcategory,
-            address: businessData.address,
-            phone: businessData.phone,
-            rating: businessData.rating,
-            website: businessData.website,
-            yelpUrl: businessData.yelpUrl,
-            ...businessData
-          };
-        });
-        businesses = [...businesses, ...legacyBusinesses];
+        // Only extract businesses from categories if we don't have businesses data
+        if (businesses.length === 0) {
+          console.log('No businesses found in main data, extracting from categories');
+          businesses = this.extractBusinessesFromCategories(data.categories);
+        }
       }
     } else {
       console.error('Unexpected data structure:', data);
@@ -412,20 +406,24 @@ export class App {
     return {
       name: businessName || 'Unknown Business',
       category: categoryPath.join(' > '),
-      subcategory: categoryPath.length > 1 ? categoryPath[categoryPath.length - 1] : undefined,
-      website: yelpUrl,
       yelpUrl: yelpUrl,
       // These would ideally come from a separate API call to get business details
       address: undefined,
-      phone: undefined,
-      rating: undefined
+      webDomain: undefined,
+      description: undefined,
+      rating: undefined,
+      reviewCount: undefined,
+      cityState: undefined,
+      country: undefined,
+      isClosed: undefined
     };
   }
 
   private removeDuplicateBusinesses(businesses: Business[]): Business[] {
     const seen = new Set<string>();
     return businesses.filter(business => {
-      const key = business.yelpUrl || business.website || business.name;
+      // Use yelpUrl as the primary key since it should be unique
+      const key = business.yelpUrl || `${business.name}-${business.address || 'no-address'}`;
       if (seen.has(key)) {
         return false;
       }
@@ -604,5 +602,20 @@ export class App {
     }
     
     return '';
+  }
+
+  getFirstTwentyWords(description: string): string {
+    if (!description) return '';
+    const words = description.split(' ');
+    const firstTwenty = words.slice(0, 20).join(' ');
+    return firstTwenty + (words.length > 20 ? '...' : '');
+  }
+
+  private formatCategories(categories: string[][]): string {
+    if (!categories || !Array.isArray(categories) || categories.length === 0) return 'Other';
+    
+    // Only use the first category path: [["shopping", "fashion", "shoes"], ["shopping", "fashion", "menscloth"]] -> "Shopping > Fashion > Shoes"
+    const firstCategoryPath = categories[0];
+    return firstCategoryPath.map(cat => cat.charAt(0).toUpperCase() + cat.slice(1)).join(' > ');
   }
 }

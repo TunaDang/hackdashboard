@@ -61,31 +61,31 @@
         <div class="content-right">
           @if (filteredBusinesses().length > 0) {
             <div class="business-grid">
-              @for (business of filteredBusinesses(); track business.name) {
+              @for (business of filteredBusinesses(); track business.yelpUrl) {
                 <mat-card class="business-card">
                   <mat-card-header>
                     <mat-card-title>{{ business.name }}</mat-card-title>
                     <mat-card-subtitle>{{ business.category }}</mat-card-subtitle>
                   </mat-card-header>
                   <mat-card-content>
-                    @if (business.subcategory) {
-                      <p><strong>Type:</strong> {{ business.subcategory }}</p>
-                    }
                     @if (business.address) {
                       <p><strong>Address:</strong> {{ business.address }}</p>
                     }
-                    @if (business.phone) {
-                      <p><strong>Phone:</strong> {{ business.phone }}</p>
-                    }
                     @if (business.rating) {
-                      <p><strong>Rating:</strong> {{ business.rating }}/5</p>
+                      <p><strong>Rating:</strong> {{ business.rating }}/5 ({{ business.reviewCount }} reviews)</p>
+                    }
+                    @if (business.description) {
+                      <p class="description"><strong>Description:</strong> {{ getFirstTwentyWords(business.description) }}</p>
                     }
                   </mat-card-content>
-                  @if (business.website) {
-                    <mat-card-actions>
-                      <a mat-button [href]="business.website" target="_blank">Visit Website</a>
-                    </mat-card-actions>
-                  }
+                  <mat-card-actions>
+                    @if (business.yelpUrl) {
+                      <a mat-button [href]="business.yelpUrl" target="_blank">View Yelp</a>
+                    }
+                    @if (business.webDomain) {
+                      <a mat-button [href]="'https://' + business.webDomain" target="_blank">Visit Domain</a>
+                    }
+                  </mat-card-actions>
                 </mat-card>
               }
             </div>
