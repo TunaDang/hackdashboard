@@ -361,9 +361,13 @@ export class App {
 
     // Remove duplicate businesses by URL and update signals
     const uniqueBusinesses = this.removeDuplicateBusinesses(businesses);
-    this.categories.set(categories);
+    
+    // Rebuild category tree with accurate counts based on actual deduplicated businesses
+    const correctedCategories = this.buildCategoryTreeFromBusinesses(uniqueBusinesses);
+    
+    this.categories.set(correctedCategories);
     this.businesses.set(uniqueBusinesses);
-    console.log('Processed categories:', categories);
+    console.log('Processed categories:', correctedCategories);
     console.log('Processed businesses:', uniqueBusinesses);
     this.loading.set(false);
   }
@@ -617,5 +621,91 @@ export class App {
     // Only use the first category path: [["shopping", "fashion", "shoes"], ["shopping", "fashion", "menscloth"]] -> "Shopping > Fashion > Shoes"
     const firstCategoryPath = categories[0];
     return firstCategoryPath.map(cat => cat.charAt(0).toUpperCase() + cat.slice(1)).join(' > ');
+  }
+
+  private buildCategoryTreeFromBusinesses(businesses: Business[]): Category[] {
+    const tree: Category[] = [];
+    const pathMap: Map<string, Category> = new Map();
+
+    // Count businesses by category path
+    const categoryBusinessCounts: Map<string, Set<string>> = new Map();
+
+    businesses.forEach(business => {
+      if (!business.category || business.category === 'Other') return;
+      
+      // Split category path like "Shopping > Fashion > Shoes" back into array
+      const categoryParts = business.category.split(' > ').map(part => part.toLowerCase());
+      
+      // Add business to each level of the category path
+      for (let i = 1; i <= categoryParts.length; i++) {
+        const pathKey = categoryParts.slice(0, i).join(' > ');
+        
+        if (!categoryBusinessCounts.has(pathKey)) {
+          categoryBusinessCounts.set(pathKey, new Set());
+        }
+        
+        // Use yelpUrl as unique identifier for counting
+        if (business.yelpUrl) {
+          categoryBusinessCounts.get(pathKey)!.add(business.yelpUrl);
+        }
+      }
+    });
+
+    // Build tree structure with accurate counts
+    categoryBusinessCounts.forEach((businessSet, pathKey) => {
+      const pathParts = pathKey.split(' > ');
+      this.addCategoryToTreeFromPath(tree, pathMap, pathParts, businessSet.size);
+    });
+
+    return tree;
+  }
+
+  private addCategoryToTreeFromPath(tree: Category[], pathMap: Map<string, Category>, pathParts: string[], count: number) {
+    let currentLevel = tree;
+    let currentPath: string[] = [];
+
+    for (let i = 0; i < pathParts.length; i++) {
+      const categoryName = pathParts[i].charAt(0).toUpperCase() + pathParts[i].slice(1);
+      currentPath = [...currentPath, categoryName];
+      const pathKey = currentPath.join(' > ');
+
+      let category = pathMap.get(pathKey);
+      
+      if (!category) {
+        category = {
+          name: categoryName,
+          count: i === pathParts.length - 1 ? count : 0, // Only leaf nodes get the actual count
+          path: [...currentPath],
+          level: i,
+          children: [],
+          businessUrls: []
+        };
+        
+        pathMap.set(pathKey, category);
+        currentLevel.push(category);
+      } else if (i === pathParts.length - 1) {
+        // Update the count for leaf node
+        category.count = count;
+      }
+
+      if (!category.children) {
+        category.children = [];
+      }
+      
+      currentLevel = category.children;
+    }
+
+    // Update parent counts to be sum of children
+    this.updateParentCounts(tree);
+  }
+
+  private updateParentCounts(categories: Category[]) {
+    categories.forEach(category => {
+      if (category.children && category.children.length > 0) {
+        this.updateParentCounts(category.children);
+        // Parent count is sum of all children counts
+        category.count = category.children.reduce((sum, child) => sum + child.count, 0);
+      }
+    });
   }
 }
