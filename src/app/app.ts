@@ -8,9 +8,11 @@ import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { map, startWith } from 'rxjs';
 import { BusinessSearchService, ZipCity, Category, Business } from './business-search.service';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { HtmlViewerDialogComponent } from './html-viewer-dialog.component';
 
 @Component({
   selector: 'app-root',
@@ -23,6 +25,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
     MatProgressSpinnerModule,
     MatIconModule,
     MatAutocompleteModule,
+    MatDialogModule,
     NgTemplateOutlet
   ],
   templateUrl: './app.html',
@@ -30,6 +33,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 })
 export class App {
   private businessService = inject(BusinessSearchService);
+  private dialog = inject(MatDialog);
   
   // Signals for reactive state
   searchQuery = signal('');
@@ -48,10 +52,12 @@ export class App {
     const categoryPath = this.selectedCategoryPath();
     
     if (categoryPath.length === 0) {
-      return allBusinesses;
+      // When no category is selected, show all businesses without deduplication
+      return allBusinesses.map(business => this.decodeBusinessName(business))
+        .sort((a, b) => a.name.localeCompare(b.name));
     }
     
-    return allBusinesses.filter(business => {
+    const matchingBusinesses = allBusinesses.filter(business => {
       const businessCategory = business.category || '';
       const selectedPath = categoryPath.join(' > ');
       
@@ -59,6 +65,10 @@ export class App {
              businessCategory.startsWith(selectedPath) ||
              this.matchesCategoryPath(businessCategory, categoryPath);
     });
+    
+    // Only deduplicate when a category is selected
+    return this.deduplicateBusinesses(matchingBusinesses)
+      .sort((a, b) => a.name.localeCompare(b.name));
   });
 
   // Convert form control to signal
@@ -110,10 +120,10 @@ export class App {
         }
         return zc.city;
       })
-      .slice(0, 10); // Limit to 10 suggestions
+      .slice(0, 20); // Limit to 20 suggestions
     
-    // Remove duplicates
-    return [...new Set(matchingCities)];
+    // Remove duplicates and sort alphabetically
+    return [...new Set(matchingCities)].sort();
   }
 
   onOptionSelected(option: string) {
@@ -354,6 +364,67 @@ export class App {
     });
   }
 
+  private deduplicateBusinesses(businesses: Business[]): Business[] {
+    const businessMap = new Map<string, Business>();
+    
+    businesses.forEach(business => {
+      const decodedBusiness = this.decodeBusinessName(business);
+      const key = decodedBusiness.yelpUrl || `${decodedBusiness.name}-${decodedBusiness.address || 'no-address'}`;
+      
+      if (businessMap.has(key)) {
+        // Combine category paths for same business
+        const existingBusiness = businessMap.get(key)!;
+        const existingCategories = existingBusiness.category || '';
+        const newCategory = decodedBusiness.category || '';
+        
+        // Combine categories with comma separation, avoiding duplicates
+        const categoriesSet = new Set([
+          ...existingCategories.split(', ').filter(cat => cat.trim()),
+          ...newCategory.split(', ').filter(cat => cat.trim())
+        ]);
+        
+        existingBusiness.category = Array.from(categoriesSet).join(', ');
+      } else {
+        businessMap.set(key, decodedBusiness);
+      }
+    });
+    
+    return Array.from(businessMap.values());
+  }
+
+  private decodeHtmlEntities(text: string): string {
+    const entityMap: { [key: string]: string } = {
+      '&#x27;': "'",
+      '&apos;': "'",
+      '&quot;': '"',
+      '&lt;': '<',
+      '&gt;': '>',
+      '&amp;': '&',
+      '&#39;': "'",
+      '&#34;': '"'
+    };
+    
+    return text.replace(/&#x27;|&apos;|&quot;|&lt;|&gt;|&amp;|&#39;|&#34;/g, (match) => {
+      return entityMap[match] || match;
+    });
+  }
+
+  private decodeBusinessName(business: Business): Business {
+    const decodedBusiness = { ...business };
+    if (decodedBusiness.name) {
+      try {
+        // First URL decode
+        decodedBusiness.name = decodeURIComponent(decodedBusiness.name.replace(/\+/g, ' '));
+        // Then HTML entity decode
+        decodedBusiness.name = this.decodeHtmlEntities(decodedBusiness.name);
+      } catch (error) {
+        // If decoding fails, keep original name
+        console.warn('Failed to decode business name:', decodedBusiness.name, error);
+      }
+    }
+    return decodedBusiness;
+  }
+
 
   toggleCategory(category: Category) {
     const pathKey = category.path.join(' > ');
@@ -447,6 +518,55 @@ export class App {
     return firstTwenty + (words.length > 20 ? '...' : '');
   }
 
+  openHtmlViewer(business: Business): void {
+    if (!business.webDomain) {
+      return; // Don't open if no domain
+    }
+
+    // Extract Yelp ID from URL for API call
+    const yelpId = this.extractYelpIdFromUrl(business.yelpUrl || '');
+    
+    // Open dialog with placeholder data for now
+    const dialogRef = this.dialog.open(HtmlViewerDialogComponent, {
+      width: '90vw',
+      maxWidth: '900px',
+      data: {
+        businessName: business.name,
+        domain: business.webDomain,
+        yelpUrl: business.yelpUrl,
+        loading: false,
+        error: null,
+        htmlContent: null // Will show placeholder template
+      }
+    });
+
+    // In the future, when the endpoint is ready, this would make the API call:
+    // this.businessService.getBusinessData(yelpId).subscribe({
+    //   next: (data) => {
+    //     dialogRef.componentInstance.data = {
+    //       ...dialogRef.componentInstance.data,
+    //       loading: false,
+    //       htmlContent: data.domainHtml || data.html
+    //     };
+    //   },
+    //   error: (error) => {
+    //     dialogRef.componentInstance.data = {
+    //       ...dialogRef.componentInstance.data,
+    //       loading: false,
+    //       error: 'Failed to fetch HTML content: ' + error.message
+    //     };
+    //   }
+    // });
+  }
+
+  private extractYelpIdFromUrl(yelpUrl: string): string {
+    if (!yelpUrl) return '';
+    // Extract the business ID from Yelp URL
+    // Example: https://www.yelp.com/biz/business-name-location -> business-name-location
+    const matches = yelpUrl.match(/\/biz\/([^?]+)/);
+    return matches ? matches[1] : '';
+  }
+
   private formatCategories(categories: string[][]): string[] {
     if (!categories || !Array.isArray(categories) || categories.length === 0) return ['Other'];
     
@@ -487,13 +607,13 @@ export class App {
     // Build tree structure with accurate counts
     categoryBusinessCounts.forEach((businessSet, pathKey) => {
       const pathParts = pathKey.split(' > ');
-      this.addCategoryToTreeFromPath(tree, pathMap, pathParts, businessSet.size);
+      this.addCategoryToTreeFromPath(tree, pathMap, pathParts, Array.from(businessSet));
     });
 
     return tree;
   }
 
-  private addCategoryToTreeFromPath(tree: Category[], pathMap: Map<string, Category>, pathParts: string[], count: number) {
+  private addCategoryToTreeFromPath(tree: Category[], pathMap: Map<string, Category>, pathParts: string[], businessUrls: string[]) {
     let currentLevel = tree;
     let currentPath: string[] = [];
 
@@ -507,18 +627,17 @@ export class App {
       if (!category) {
         category = {
           name: categoryName,
-          count: i === pathParts.length - 1 ? count : 0, // Only leaf nodes get the actual count
           path: [...currentPath],
           level: i,
           children: [],
-          businessUrls: []
+          businessUrls: i === pathParts.length - 1 ? businessUrls : [] // Add URLs to leaf nodes
         };
         
         pathMap.set(pathKey, category);
         currentLevel.push(category);
+        currentLevel.sort((a, b) => a.name.localeCompare(b.name));
       } else if (i === pathParts.length - 1) {
-        // Update the count for leaf node
-        category.count = count;
+        category.businessUrls = businessUrls; // Update leaf node URLs
       }
 
       if (!category.children) {
@@ -528,7 +647,6 @@ export class App {
       currentLevel = category.children;
     }
 
-    // Update parent counts to be sum of children
     this.updateParentCounts(tree);
   }
 
@@ -536,9 +654,26 @@ export class App {
     categories.forEach(category => {
       if (category.children && category.children.length > 0) {
         this.updateParentCounts(category.children);
-        // Parent count is sum of all children counts
-        category.count = category.children.reduce((sum, child) => sum + child.count, 0);
+        // Sort children alphabetically
+        category.children.sort((a, b) => a.name.localeCompare(b.name));
+        
+        // Collect unique business URLs from all children
+        const childUrls = new Set<string>();
+        category.children.forEach(child => {
+          child.businessUrls.forEach(url => childUrls.add(url));
+        });
+        
+        // Combine parent's own businessUrls (null leaf businesses)
+        const allUrls = new Set<string>();
+        category.businessUrls.forEach(url => allUrls.add(url));
+        childUrls.forEach(url => allUrls.add(url));
+        
+        // Update parent with the combined unique URLs
+        category.businessUrls = Array.from(allUrls);
       }
     });
+    
+    // Sort the current level alphabetically
+    categories.sort((a, b) => a.name.localeCompare(b.name));
   }
 }

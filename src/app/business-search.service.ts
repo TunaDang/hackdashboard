@@ -9,11 +9,10 @@ export interface ZipCity {
 
 export interface Category {
   name: string;
-  count: number;
   path: string[];
   level: number;
   children?: Category[];
-  businessUrls?: string[];
+  businessUrls: string[];
 }
 
 export interface Business {
@@ -53,5 +52,9 @@ export class BusinessSearchService {
   getCategoriesByCity(city: string, zipcodes: string[]): Observable<any> {
     const zipQuery = zipcodes.join(',');
     return this.http.get<any>(`${this.baseUrl}/categories?zipcode=${zipQuery}`);
+  }
+
+  getBusinessData(yelpId: string): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/bizdata?id=${yelpId}`);
   }
 }
