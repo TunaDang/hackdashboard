@@ -52,8 +52,8 @@ export class App {
     const categoryPath = this.selectedCategoryPath();
     
     if (categoryPath.length === 0) {
-      // When no category is selected, show all businesses without deduplication
-      return allBusinesses.map(business => this.decodeBusinessName(business))
+      // When no category is selected, show all businesses with deduplication and combined categories
+      return this.deduplicateBusinesses(allBusinesses.map(business => this.decodeBusinessName(business)))
         .sort((a, b) => a.name.localeCompare(b.name));
     }
     
@@ -66,7 +66,7 @@ export class App {
              this.matchesCategoryPath(businessCategory, categoryPath);
     });
     
-    // Only deduplicate when a category is selected
+    // Deduplicate all filtered businesses
     return this.deduplicateBusinesses(matchingBusinesses)
       .sort((a, b) => a.name.localeCompare(b.name));
   });
@@ -377,13 +377,14 @@ export class App {
         const existingCategories = existingBusiness.category || '';
         const newCategory = decodedBusiness.category || '';
         
-        // Combine categories with comma separation, avoiding duplicates
-        const categoriesSet = new Set([
-          ...existingCategories.split(', ').filter(cat => cat.trim()),
-          ...newCategory.split(', ').filter(cat => cat.trim())
-        ]);
+        // Split existing and new categories properly and combine without duplicates
+        const existingCatArray = existingCategories.split(', ').filter(cat => cat.trim());
+        const newCatArray = newCategory.split(', ').filter(cat => cat.trim());
         
-        existingBusiness.category = Array.from(categoriesSet).join(', ');
+        const categoriesSet = new Set([...existingCatArray, ...newCatArray]);
+        
+        // Sort categories alphabetically and join with commas
+        existingBusiness.category = Array.from(categoriesSet).sort().join(', ');
       } else {
         businessMap.set(key, decodedBusiness);
       }
@@ -453,6 +454,13 @@ export class App {
     }
     
     console.log(`Selected category: ${category.path.join(' > ')}`);
+    console.log(`Filtered businesses: ${this.filteredBusinesses().length}`);
+  }
+
+  selectAllCategories() {
+    // Reset to show all categories/businesses without making API call
+    this.selectedCategoryPath.set([]);
+    console.log('Selected all categories');
     console.log(`Filtered businesses: ${this.filteredBusinesses().length}`);
   }
 

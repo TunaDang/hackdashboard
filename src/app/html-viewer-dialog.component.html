@@ -1,0 +1,268 @@
+<div class="html-viewer-dialog">
+  <!-- Condensed Header -->
+  <div class="condensed-header" mat-dialog-title>
+    <div class="business-info">
+      <h2>{{ data.businessName }}</h2>
+      <div class="metadata">
+        <span class="domain"><mat-icon>language</mat-icon> {{ data.domain }}</span>
+        <span class="yelp-link"><mat-icon>business</mat-icon> {{ data.yelpUrl }}</span>
+      </div>
+    </div>
+  </div>
+  
+  <mat-dialog-content class="dialog-content">
+    <mat-tab-group class="content-tabs">
+      <mat-tab label="Yelp Business">
+        <div class="tab-content">
+          @if (isLoading('yelp')) {
+            <div class="loading-container">
+              <mat-spinner diameter="50"></mat-spinner>
+              <p>Loading Yelp business page HTML...</p>
+            </div>
+          } @else if (getError('yelp')) {
+            <div class="error-container">
+              <p class="error-message">{{ getError('yelp') }}</p>
+              <p class="placeholder-note">
+                <strong>Note:</strong> Showing placeholder content since the API call failed.
+              </p>
+              <div class="sample-html">
+                <h4>Placeholder Yelp Business Page:</h4>
+                <pre><!DOCTYPE html>
+<html>
+<head>
+    <title>{{ data.businessName }} - Yelp</title>
+</head>
+<body>
+    <div class="biz-page-header">
+        <h1>{{ data.businessName }}</h1>
+        <div class="rating-info">
+            <span class="rating">★★★★☆</span>
+            <span class="review-count">(123 reviews)</span>
+        </div>
+    </div>
+    <div class="business-info">
+        <p>Category, Location, Hours, etc.</p>
+    </div>
+</body>
+</html></pre>
+              </div>
+            </div>
+          } @else if (yelpHtmlContent()) {
+            <div class="html-content">
+              <div class="domain-info">
+                <strong>Yelp URL:</strong> {{ data.yelpUrl }}
+              </div>
+              <div class="html-display">
+                <pre>{{ yelpHtmlContent() }}</pre>
+              </div>
+            </div>
+          } @else {
+            <div class="placeholder-container">
+              <h3>Yelp Business Page HTML</h3>
+              <div class="sample-html">
+                <h4>Placeholder Yelp Business Page Structure:</h4>
+                <pre><!DOCTYPE html>
+<html>
+<head>
+    <title>{{ data.businessName }} - Yelp</title>
+</head>
+<body>
+    <div class="biz-page-header">
+        <h1>{{ data.businessName }}</h1>
+        <div class="rating-info">
+            <span class="rating">★★★★☆</span>
+            <span class="review-count">(123 reviews)</span>
+        </div>
+    </div>
+    <div class="business-info">
+        <p>Category, Location, Hours, etc.</p>
+    </div>
+</body>
+</html></pre>
+              </div>
+              <p class="api-note">
+                <strong>Note:</strong> No Yelp ID provided. Real Yelp HTML will be fetched when available.
+              </p>
+            </div>
+          }
+        </div>
+      </mat-tab>
+      
+      <mat-tab label="Domain Page 1">
+        <div class="tab-content">
+          @if (isLoading('domain1')) {
+            <div class="loading-container">
+              <mat-spinner diameter="50"></mat-spinner>
+              <p>Loading HTML content for {{ data.domain }}...</p>
+            </div>
+          } @else if (domainHtmlPages()['domain1']) {
+            <div class="html-content">
+              <div class="domain-info">
+                <strong>Domain:</strong> {{ data.domain }} (Page 1 - Homepage)
+              </div>
+              <div class="html-display">
+                <pre>{{ domainHtmlPages()['domain1'] }}</pre>
+              </div>
+            </div>
+          } @else {
+            <div class="placeholder-container">
+              <h3>Domain HTML Content - Page 1</h3>
+              <div class="sample-html">
+                <h4>Main Domain Page:</h4>
+                <pre><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ data.businessName }} - Homepage</title>
+</head>
+<body>
+    <header>
+        <h1>Welcome to {{ data.businessName }}</h1>
+        <nav>
+            <a href="/about">About</a>
+            <a href="/services">Services</a>
+            <a href="/contact">Contact</a>
+        </nav>
+    </header>
+    <main>
+        <section class="hero">
+            <h2>Our Services</h2>
+            <p>Description of business services...</p>
+        </section>
+    </main>
+</body>
+</html></pre>
+              </div>
+              <p class="api-note">
+                <strong>Note:</strong> Domain page 1 HTML will be scraped from {{ data.domain }}
+              </p>
+            </div>
+          }
+        </div>
+      </mat-tab>
+      
+      <mat-tab label="Domain Page 2">
+        <div class="tab-content">
+          @if (isLoading('domain2')) {
+            <div class="loading-container">
+              <mat-spinner diameter="50"></mat-spinner>
+              <p>Loading page 2 content for {{ data.domain }}...</p>
+            </div>
+          } @else if (domainHtmlPages()['domain2']) {
+            <div class="html-content">
+              <div class="domain-info">
+                <strong>Domain:</strong> {{ data.domain }} (Page 2 - About/Services)
+              </div>
+              <div class="html-display">
+                <pre>{{ domainHtmlPages()['domain2'] }}</pre>
+              </div>
+            </div>
+          } @else {
+            <div class="placeholder-container">
+              <h3>Domain HTML Content - Page 2</h3>
+              <div class="sample-html">
+                <h4>About/Services Page:</h4>
+                <pre><!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>About {{ data.businessName }}</title>
+</head>
+<body>
+    <header>
+        <h1>About {{ data.businessName }}</h1>
+    </header>
+    <main>
+        <section class="company-info">
+            <h2>Our Story</h2>
+            <p>Company background and history...</p>
+        </section>
+        <section class="services">
+            <h2>What We Offer</h2>
+            <ul>
+                <li>Service 1</li>
+                <li>Service 2</li>
+                <li>Service 3</li>
+            </ul>
+        </section>
+    </main>
+</body>
+</html></pre>
+              </div>
+              <p class="api-note">
+                <strong>Note:</strong> Domain page 2 HTML will be scraped from {{ data.domain }}/about or similar
+              </p>
+            </div>
+          }
+        </div>
+      </mat-tab>
+      
+      <mat-tab label="Domain Page 3">
+        <div class="tab-content">
+          @if (isLoading('domain3')) {
+            <div class="loading-container">
+              <mat-spinner diameter="50"></mat-spinner>
+              <p>Loading page 3 content for {{ data.domain }}...</p>
+            </div>
+          } @else if (domainHtmlPages()['domain3']) {
+            <div class="html-content">
+              <div class="domain-info">
+                <strong>Domain:</strong> {{ data.domain }} (Page 3 - Contact/Location)
+              </div>
+              <div class="html-display">
+                <pre>{{ domainHtmlPages()['domain3'] }}</pre>
+              </div>
+            </div>
+          } @else {
+            <div class="placeholder-container">
+              <h3>Domain HTML Content - Page 3</h3>
+              <div class="sample-html">
+                <h4>Contact/Location Page:</h4>
+                <pre><!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Contact {{ data.businessName }}</title>
+</head>
+<body>
+    <header>
+        <h1>Contact {{ data.businessName }}</h1>
+    </header>
+    <main>
+        <section class="contact-info">
+            <h2>Get in Touch</h2>
+            <p><strong>Phone:</strong> (555) 123-4567</p>
+            <p><strong>Email:</strong> info@{{ data.domain }}</p>
+            <p><strong>Address:</strong> 123 Main St, City, State</p>
+        </section>
+        <section class="hours">
+            <h2>Business Hours</h2>
+            <p>Mon-Fri: 9AM-6PM</p>
+            <p>Sat-Sun: 10AM-4PM</p>
+        </section>
+    </main>
+</body>
+</html></pre>
+              </div>
+              <p class="api-note">
+                <strong>Note:</strong> Domain page 3 HTML will be scraped from {{ data.domain }}/contact or similar
+              </p>
+            </div>
+          }
+        </div>
+      </mat-tab>
+    </mat-tab-group>
+  </mat-dialog-content>
+  
+  <mat-dialog-actions align="end">
+    <button mat-button (click)="close()">Close</button>
+    @if (data.yelpUrl) {
+      <a mat-button [href]="data.yelpUrl" target="_blank">
+        <mat-icon>business</mat-icon> View Yelp
+      </a>
+    }
+    @if (data.domain) {
+      <a mat-raised-button color="primary" [href]="'https://' + data.domain" target="_blank">
+        <mat-icon>language</mat-icon> Visit {{ data.domain }}
+      </a>
+    }
+  </mat-dialog-actions>
+</div>

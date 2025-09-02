@@ -52,7 +52,16 @@
         <!-- Bottom Left: Categories -->
         <div class="content-left">
           <div class="categories-section">
-            <h3>Categories ({{ categories().length }})</h3>
+            <!-- Categories button to show all businesses (replaces header) -->
+            <div class="all-categories-button">
+              <button 
+                mat-button 
+                class="category-button categories-root"
+                [class.active]="selectedCategoryPath().length === 0"
+                (click)="selectAllCategories()">
+                Categories ({{ businesses().length }})
+              </button>
+            </div>
             <div class="category-tree">
               <ng-container *ngTemplateOutlet="categoryTemplate; context: { categories: categories(), level: 0 }"></ng-container>
             </div>

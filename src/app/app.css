@@ -189,6 +189,28 @@
   font-weight: 500;
 }
 
+.all-categories-button {
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 8px;
+}
+
+.categories-root {
+  font-weight: 500;
+  font-size: 1.1em;
+  background-color: #f5f5f5;
+  width: 100%;
+  color: #424242;
+  padding: 12px 16px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.categories-root.active {
+  background-color: #1976d2;
+  color: white;
+}
+
 /* Content Right - Business Results */
 .content-right {
   padding: 20px;
