@@ -527,10 +527,6 @@ export class App {
   }
 
   openHtmlViewer(business: Business): void {
-    if (!business.webDomain) {
-      return; // Don't open if no domain
-    }
-
     // Extract Yelp ID from URL for API call
     const yelpId = this.extractYelpIdFromUrl(business.yelpUrl || '');
     
