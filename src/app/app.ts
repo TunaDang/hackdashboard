@@ -53,7 +53,8 @@ export class App {
     
     if (categoryPath.length === 0) {
       // When no category is selected, show all businesses without deduplication
-      return allBusinesses.map(business => this.decodeBusinessName(business));
+      return allBusinesses.map(business => this.decodeBusinessName(business))
+        .sort((a, b) => a.name.localeCompare(b.name));
     }
     
     const matchingBusinesses = allBusinesses.filter(business => {
@@ -66,7 +67,8 @@ export class App {
     });
     
     // Only deduplicate when a category is selected
-    return this.deduplicateBusinesses(matchingBusinesses);
+    return this.deduplicateBusinesses(matchingBusinesses)
+      .sort((a, b) => a.name.localeCompare(b.name));
   });
 
   // Convert form control to signal
