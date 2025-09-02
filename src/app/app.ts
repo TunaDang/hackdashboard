@@ -118,10 +118,10 @@ export class App {
         }
         return zc.city;
       })
-      .slice(0, 10); // Limit to 10 suggestions
+      .slice(0, 20); // Limit to 20 suggestions
     
-    // Remove duplicates
-    return [...new Set(matchingCities)];
+    // Remove duplicates and sort alphabetically
+    return [...new Set(matchingCities)].sort();
   }
 
   onOptionSelected(option: string) {
