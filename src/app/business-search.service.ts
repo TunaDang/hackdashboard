@@ -9,11 +9,10 @@ export interface ZipCity {
 
 export interface Category {
   name: string;
-  count: number;
   path: string[];
   level: number;
   children?: Category[];
-  businessUrls?: string[];
+  businessUrls: string[];
 }
 
 export interface Business {

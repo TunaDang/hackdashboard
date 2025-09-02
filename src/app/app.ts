@@ -607,13 +607,13 @@ export class App {
     // Build tree structure with accurate counts
     categoryBusinessCounts.forEach((businessSet, pathKey) => {
       const pathParts = pathKey.split(' > ');
-      this.addCategoryToTreeFromPath(tree, pathMap, pathParts, businessSet.size);
+      this.addCategoryToTreeFromPath(tree, pathMap, pathParts, Array.from(businessSet));
     });
 
     return tree;
   }
 
-  private addCategoryToTreeFromPath(tree: Category[], pathMap: Map<string, Category>, pathParts: string[], count: number) {
+  private addCategoryToTreeFromPath(tree: Category[], pathMap: Map<string, Category>, pathParts: string[], businessUrls: string[]) {
     let currentLevel = tree;
     let currentPath: string[] = [];
 
@@ -627,20 +627,17 @@ export class App {
       if (!category) {
         category = {
           name: categoryName,
-          count: i === pathParts.length - 1 ? count : 0, // Only leaf nodes get the actual count
           path: [...currentPath],
           level: i,
           children: [],
-          businessUrls: []
+          businessUrls: i === pathParts.length - 1 ? businessUrls : [] // Add URLs to leaf nodes
         };
         
         pathMap.set(pathKey, category);
         currentLevel.push(category);
-        // Sort alphabetically after adding
         currentLevel.sort((a, b) => a.name.localeCompare(b.name));
       } else if (i === pathParts.length - 1) {
-        // Update the count for leaf node
-        category.count = count;
+        category.businessUrls = businessUrls; // Update leaf node URLs
       }
 
       if (!category.children) {
@@ -650,18 +647,29 @@ export class App {
       currentLevel = category.children;
     }
 
-    // Update parent counts to be sum of children
     this.updateParentCounts(tree);
   }
 
   private updateParentCounts(categories: Category[]) {
     categories.forEach(category => {
       if (category.children && category.children.length > 0) {
+        this.updateParentCounts(category.children);
         // Sort children alphabetically
         category.children.sort((a, b) => a.name.localeCompare(b.name));
-        this.updateParentCounts(category.children);
-        // Parent count is sum of all children counts
-        category.count = category.children.reduce((sum, child) => sum + child.count, 0);
+        
+        // Collect unique business URLs from all children
+        const childUrls = new Set<string>();
+        category.children.forEach(child => {
+          child.businessUrls.forEach(url => childUrls.add(url));
+        });
+        
+        // Combine parent's own businessUrls (null leaf businesses)
+        const allUrls = new Set<string>();
+        category.businessUrls.forEach(url => allUrls.add(url));
+        childUrls.forEach(url => allUrls.add(url));
+        
+        // Update parent with the combined unique URLs
+        category.businessUrls = Array.from(allUrls);
       }
     });
     
