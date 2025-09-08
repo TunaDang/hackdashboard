@@ -1,0 +1,163 @@
+<div class="html-viewer-dialog">
+  <!-- Enhanced Header with clickable links -->
+  <div class="dialog-header" mat-dialog-title>
+    <div class="business-info">
+      <h2>{{ data.businessName }}</h2>
+      <div class="header-links">
+        <span class="domain-link" *ngIf="data.domain">
+          <mat-icon>language</mat-icon>
+          <a href="#" (click)="openInPopup('https://' + data.domain, $event)" class="full-url-link">
+            https://{{ data.domain }}
+          </a>
+        </span>
+        <span class="yelp-link" *ngIf="data.yelpUrl">
+          <mat-icon>business</mat-icon>
+          <a href="#" (click)="openInPopup(data.yelpUrl, $event)" class="full-url-link">
+            {{ data.yelpUrl }}
+          </a>
+          <span class="yelp-id-label">(ID: {{ extractYelpId(data.yelpUrl) }})</span>
+        </span>
+      </div>
+    </div>
+  </div>
+  
+  <div class="dialog-body">
+    <!-- Left side tabs for different pages -->
+    <div class="tabs-sidebar">
+      <mat-tab-group orientation="vertical" class="vertical-tabs">
+        <mat-tab label="Yelp Page">
+          <div class="tab-content">
+            <div class="content-header">
+              <h3>Yelp Business Page HTML</h3>
+            </div>
+            <div class="html-content-area">
+              @if (isLoading('yelp')) {
+                <div class="loading-container">
+                  <mat-spinner diameter="40"></mat-spinner>
+                  <p>Loading Yelp page HTML...</p>
+                </div>
+              } @else if (getError('yelp')) {
+                <div class="error-container">
+                  <p class="error-message">{{ getError('yelp') }}</p>
+                </div>
+              } @else if (getPageContent('yelp')) {
+                <div class="html-display">
+                  <pre>{{ getPageContent('yelp') }}</pre>
+                </div>
+              } @else {
+                <div class="html-display">
+                  <pre>{{ getPlaceholderHtml('yelp') }}</pre>
+                </div>
+              }
+            </div>
+          </div>
+        </mat-tab>
+        
+        <mat-tab label="Domain Page 1">
+          <div class="tab-content">
+            <div class="content-header">
+              <h3>{{ data.domain }} - Homepage</h3>
+            </div>
+            <div class="html-content-area">
+              @if (isLoading('domain1')) {
+                <div class="loading-container">
+                  <mat-spinner diameter="40"></mat-spinner>
+                  <p>Loading homepage HTML...</p>
+                </div>
+              } @else if (getError('domain1')) {
+                <div class="error-container">
+                  <p class="error-message">{{ getError('domain1') }}</p>
+                </div>
+              } @else if (getPageContent('domain1')) {
+                <div class="html-display">
+                  <pre>{{ getPageContent('domain1') }}</pre>
+                </div>
+              } @else {
+                <div class="html-display">
+                  <pre>{{ getPlaceholderHtml('domain1') }}</pre>
+                </div>
+              }
+            </div>
+          </div>
+        </mat-tab>
+        
+        <mat-tab label="Domain Page 2">
+          <div class="tab-content">
+            <div class="content-header">
+              <h3>{{ data.domain }} - About/Services</h3>
+            </div>
+            <div class="html-content-area">
+              @if (isLoading('domain2')) {
+                <div class="loading-container">
+                  <mat-spinner diameter="40"></mat-spinner>
+                  <p>Loading about page HTML...</p>
+                </div>
+              } @else if (getError('domain2')) {
+                <div class="error-container">
+                  <p class="error-message">{{ getError('domain2') }}</p>
+                </div>
+              } @else if (getPageContent('domain2')) {
+                <div class="html-display">
+                  <pre>{{ getPageContent('domain2') }}</pre>
+                </div>
+              } @else {
+                <div class="html-display">
+                  <pre>{{ getPlaceholderHtml('domain2') }}</pre>
+                </div>
+              }
+            </div>
+          </div>
+        </mat-tab>
+        
+        <mat-tab label="Domain Page 3">
+          <div class="tab-content">
+            <div class="content-header">
+              <h3>{{ data.domain }} - Contact</h3>
+            </div>
+            <div class="html-content-area">
+              @if (isLoading('domain3')) {
+                <div class="loading-container">
+                  <mat-spinner diameter="40"></mat-spinner>
+                  <p>Loading contact page HTML...</p>
+                </div>
+              } @else if (getError('domain3')) {
+                <div class="error-container">
+                  <p class="error-message">{{ getError('domain3') }}</p>
+                </div>
+              } @else if (getPageContent('domain3')) {
+                <div class="html-display">
+                  <pre>{{ getPageContent('domain3') }}</pre>
+                </div>
+              } @else {
+                <div class="html-display">
+                  <pre>{{ getPlaceholderHtml('domain3') }}</pre>
+                </div>
+              }
+            </div>
+          </div>
+        </mat-tab>
+      </mat-tab-group>
+    </div>
+  </div>
+  
+  <!-- API Info Section -->
+  <div class="api-info-section">
+    <div class="api-call-info">
+      <span class="api-label">API Call:</span>
+      <code class="api-url">GET nerds21.redmond.corp.microsoft.com:9000/bizdata?id={{ extractYelpId(data.yelpUrl) }}</code>
+      <a [href]="getBizDataApiUrl()" target="_blank" class="try-api-button" mat-raised-button color="accent">
+        <mat-icon>launch</mat-icon>
+        Try API
+      </a>
+    </div>
+  </div>
+
+  <mat-dialog-actions align="end">
+    <button mat-button (click)="close()">Close</button>
+    <button mat-raised-button color="primary" (click)="refreshContent()">
+      <mat-icon>refresh</mat-icon>
+      Refresh Content
+    </button>
+  </mat-dialog-actions>
+</div>
+

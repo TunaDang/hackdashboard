@@ -8,11 +8,12 @@ import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { map, startWith } from 'rxjs';
-import { BusinessSearchService, ZipCity, Category, Business } from './business-search.service';
+import { MatDialogModule } from '@angular/material/dialog';
+import { startWith } from 'rxjs';
+import { BusinessSearchService, ZipCity, Category, Business } from './services/business-search.service';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { HtmlViewerDialogComponent } from './html-viewer-dialog.component';
+import { TreeBuildingService } from './services/tree-building.service';
+import { ModalService } from './services/modal.service';
 
 @Component({
   selector: 'app-root',
@@ -33,7 +34,8 @@ import { HtmlViewerDialogComponent } from './html-viewer-dialog.component';
 })
 export class App {
   private businessService = inject(BusinessSearchService);
-  private dialog = inject(MatDialog);
+  private treeService = inject(TreeBuildingService);
+  private modalService = inject(ModalService);
   
   // Signals for reactive state
   searchQuery = signal('');
@@ -52,8 +54,8 @@ export class App {
     const categoryPath = this.selectedCategoryPath();
     
     if (categoryPath.length === 0) {
-      // When no category is selected, show all businesses without deduplication
-      return allBusinesses.map(business => this.decodeBusinessName(business))
+      // When no category is selected, show all businesses with deduplication and combined categories
+      return this.deduplicateBusinesses(allBusinesses.map(business => this.decodeBusinessName(business)))
         .sort((a, b) => a.name.localeCompare(b.name));
     }
     
@@ -66,7 +68,7 @@ export class App {
              this.matchesCategoryPath(businessCategory, categoryPath);
     });
     
-    // Only deduplicate when a category is selected
+    // Deduplicate all filtered businesses
     return this.deduplicateBusinesses(matchingBusinesses)
       .sort((a, b) => a.name.localeCompare(b.name));
   });
@@ -347,7 +349,7 @@ export class App {
     const cleanedBusinesses = this.cleanBusinesses(businesses);
     
     // Build category tree based on businesses data only
-    const categories = this.buildCategoryTreeFromBusinesses(cleanedBusinesses);
+    const categories = this.treeService.buildCategoryTreeFromBusinesses(cleanedBusinesses);
     
     this.categories.set(categories);
     this.businesses.set(cleanedBusinesses);
@@ -377,13 +379,14 @@ export class App {
         const existingCategories = existingBusiness.category || '';
         const newCategory = decodedBusiness.category || '';
         
-        // Combine categories with comma separation, avoiding duplicates
-        const categoriesSet = new Set([
-          ...existingCategories.split(', ').filter(cat => cat.trim()),
-          ...newCategory.split(', ').filter(cat => cat.trim())
-        ]);
+        // Split existing and new categories properly and combine without duplicates
+        const existingCatArray = existingCategories.split(', ').filter(cat => cat.trim());
+        const newCatArray = newCategory.split(', ').filter(cat => cat.trim());
         
-        existingBusiness.category = Array.from(categoriesSet).join(', ');
+        const categoriesSet = new Set([...existingCatArray, ...newCatArray]);
+        
+        // Sort categories alphabetically and join with commas
+        existingBusiness.category = Array.from(categoriesSet).sort().join(', ');
       } else {
         businessMap.set(key, decodedBusiness);
       }
@@ -456,6 +459,13 @@ export class App {
     console.log(`Filtered businesses: ${this.filteredBusinesses().length}`);
   }
 
+  selectAllCategories() {
+    // Reset to show all categories/businesses without making API call
+    this.selectedCategoryPath.set([]);
+    console.log('Selected all categories');
+    console.log(`Filtered businesses: ${this.filteredBusinesses().length}`);
+  }
+
   private updateApiDisplayWithCategory() {
     const apiInfo = this.apiCallInfo();
     const categoryPath = this.selectedCategoryPath();
@@ -519,52 +529,7 @@ export class App {
   }
 
   openHtmlViewer(business: Business): void {
-    if (!business.webDomain) {
-      return; // Don't open if no domain
-    }
-
-    // Extract Yelp ID from URL for API call
-    const yelpId = this.extractYelpIdFromUrl(business.yelpUrl || '');
-    
-    // Open dialog with placeholder data for now
-    const dialogRef = this.dialog.open(HtmlViewerDialogComponent, {
-      width: '90vw',
-      maxWidth: '900px',
-      data: {
-        businessName: business.name,
-        domain: business.webDomain,
-        yelpUrl: business.yelpUrl,
-        loading: false,
-        error: null,
-        htmlContent: null // Will show placeholder template
-      }
-    });
-
-    // In the future, when the endpoint is ready, this would make the API call:
-    // this.businessService.getBusinessData(yelpId).subscribe({
-    //   next: (data) => {
-    //     dialogRef.componentInstance.data = {
-    //       ...dialogRef.componentInstance.data,
-    //       loading: false,
-    //       htmlContent: data.domainHtml || data.html
-    //     };
-    //   },
-    //   error: (error) => {
-    //     dialogRef.componentInstance.data = {
-    //       ...dialogRef.componentInstance.data,
-    //       loading: false,
-    //       error: 'Failed to fetch HTML content: ' + error.message
-    //     };
-    //   }
-    // });
-  }
-
-  private extractYelpIdFromUrl(yelpUrl: string): string {
-    if (!yelpUrl) return '';
-    // Extract the business ID from Yelp URL
-    // Example: https://www.yelp.com/biz/business-name-location -> business-name-location
-    const matches = yelpUrl.match(/\/biz\/([^?]+)/);
-    return matches ? matches[1] : '';
+    this.modalService.openHtmlViewer(business);
   }
 
   private formatCategories(categories: string[][]): string[] {
@@ -576,104 +541,4 @@ export class App {
     );
   }
 
-  private buildCategoryTreeFromBusinesses(businesses: Business[]): Category[] {
-    const tree: Category[] = [];
-    const pathMap: Map<string, Category> = new Map();
-
-    // Count businesses by category path
-    const categoryBusinessCounts: Map<string, Set<string>> = new Map();
-
-    businesses.forEach(business => {
-      if (!business.category || business.category === 'Other') return;
-      
-      // Split category path like "Shopping > Fashion > Shoes" back into array
-      const categoryParts = business.category.split(' > ').map(part => part.toLowerCase());
-      
-      // Add business to each level of the category path
-      for (let i = 1; i <= categoryParts.length; i++) {
-        const pathKey = categoryParts.slice(0, i).join(' > ');
-        
-        if (!categoryBusinessCounts.has(pathKey)) {
-          categoryBusinessCounts.set(pathKey, new Set());
-        }
-        
-        // Use yelpUrl as unique identifier for counting
-        if (business.yelpUrl) {
-          categoryBusinessCounts.get(pathKey)!.add(business.yelpUrl);
-        }
-      }
-    });
-
-    // Build tree structure with accurate counts
-    categoryBusinessCounts.forEach((businessSet, pathKey) => {
-      const pathParts = pathKey.split(' > ');
-      this.addCategoryToTreeFromPath(tree, pathMap, pathParts, Array.from(businessSet));
-    });
-
-    return tree;
-  }
-
-  private addCategoryToTreeFromPath(tree: Category[], pathMap: Map<string, Category>, pathParts: string[], businessUrls: string[]) {
-    let currentLevel = tree;
-    let currentPath: string[] = [];
-
-    for (let i = 0; i < pathParts.length; i++) {
-      const categoryName = pathParts[i].charAt(0).toUpperCase() + pathParts[i].slice(1);
-      currentPath = [...currentPath, categoryName];
-      const pathKey = currentPath.join(' > ');
-
-      let category = pathMap.get(pathKey);
-      
-      if (!category) {
-        category = {
-          name: categoryName,
-          path: [...currentPath],
-          level: i,
-          children: [],
-          businessUrls: i === pathParts.length - 1 ? businessUrls : [] // Add URLs to leaf nodes
-        };
-        
-        pathMap.set(pathKey, category);
-        currentLevel.push(category);
-        currentLevel.sort((a, b) => a.name.localeCompare(b.name));
-      } else if (i === pathParts.length - 1) {
-        category.businessUrls = businessUrls; // Update leaf node URLs
-      }
-
-      if (!category.children) {
-        category.children = [];
-      }
-      
-      currentLevel = category.children;
-    }
-
-    this.updateParentCounts(tree);
-  }
-
-  private updateParentCounts(categories: Category[]) {
-    categories.forEach(category => {
-      if (category.children && category.children.length > 0) {
-        this.updateParentCounts(category.children);
-        // Sort children alphabetically
-        category.children.sort((a, b) => a.name.localeCompare(b.name));
-        
-        // Collect unique business URLs from all children
-        const childUrls = new Set<string>();
-        category.children.forEach(child => {
-          child.businessUrls.forEach(url => childUrls.add(url));
-        });
-        
-        // Combine parent's own businessUrls (null leaf businesses)
-        const allUrls = new Set<string>();
-        category.businessUrls.forEach(url => allUrls.add(url));
-        childUrls.forEach(url => allUrls.add(url));
-        
-        // Update parent with the combined unique URLs
-        category.businessUrls = Array.from(allUrls);
-      }
-    });
-    
-    // Sort the current level alphabetically
-    categories.sort((a, b) => a.name.localeCompare(b.name));
-  }
 }
