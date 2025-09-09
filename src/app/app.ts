@@ -59,15 +59,19 @@ export class App {
         .sort((a, b) => a.name.localeCompare(b.name));
     }
     
-    const matchingBusinesses = allBusinesses.filter(business => {
+    const matchingBusinesses : Business[] =[];
+    allBusinesses.forEach(business => {
       business.categories.forEach(category =>{  
         const businessCategory = category.join(' > ');
         const selectedPath = categoryPath.join(' > ');
-        return businessCategory === selectedPath || 
+        if (businessCategory === selectedPath|| 
              businessCategory.startsWith(selectedPath) ||
-             this.matchesCategoryPath(businessCategory, categoryPath);
+             this.matchesCategoryPath(businessCategory, categoryPath)){
+               matchingBusinesses.push(business);
+             }
       });
-      
+      return matchingBusinesses.map(business => this.decodeBusinessName(business))
+        .sort((a, b) => a.name.localeCompare(b.name));
     });
     
     // Deduplicate all filtered businesses
@@ -239,7 +243,7 @@ export class App {
     console.log('Using zipcodes for search:', zipcodes);
     
     // Limit to first few zip codes to avoid too many API calls
-    const limitedZipcodes = zipcodes.slice(0, 5);
+    const limitedZipcodes = zipcodes.slice(0, 10);
     console.log('Limited to first 5 zipcodes:', limitedZipcodes);
     
     this.aggregateZipCodeResults(limitedZipcodes);
@@ -249,33 +253,15 @@ export class App {
     // Display what we want the API to support in the future
     const zipcodesJson = JSON.stringify(zipcodes);
     this.apiCallInfo.set(`GET nerds21.redmond.corp.microsoft.com:9000/api/bizlist?zipcodes=${zipcodesJson}`);
-    const allResponses: any[] = [];
-    let completedRequests = 0;
     
-    zipcodes.forEach(zipcode => {
-      this.businessService.getBusinessByZipcode(zipcode).subscribe({
-        next: (data) => {
-          console.log(`Response for ${zipcode}:`, data);
-          if (data && data.businesses) {
-            allResponses.push(data);
-          }
-          completedRequests++;
-          
-          if (completedRequests === zipcodes.length) {
-            console.log('All responses collected:', allResponses);
-            this.mergeApiResponses(allResponses);
-          }
-        },
-        error: (error) => {
-          console.error(`Error for zipcode ${zipcode}:`, error);
-          completedRequests++;
-          
-          if (completedRequests === zipcodes.length) {
-            console.log('All responses collected:', allResponses);
-            this.mergeApiResponses(allResponses);
-          }
-        }
-      });
+    this.businessService.getBusinessByZipcodes(zipcodes).subscribe({
+      next: (data) => {
+        this.processApiResponse(data);
+      },
+      error: (error) => {
+        console.error('Error searching by zipcode:', error);
+        this.loading.set(false);
+      }
     });
   }
 
@@ -322,10 +308,13 @@ export class App {
 
 
   private cleanBusinesses(businesses: Business[]): Business[] {
-    return businesses.filter(business => {
-      // Keep all businesses but filter out invalid ones
-      return business.name && business.name !== 'Unknown Business' && business.yelpUrl;
+    let output : Business[] = [];
+    businesses.forEach(business=>{
+      if (business.name && business.name !== 'Unknown Business' && business.yelpUrl){
+        output.push(business);
+      }
     });
+    return output;
   }
 
   private decodeHtmlEntities(text: string): string {

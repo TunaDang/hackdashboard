@@ -37,7 +37,8 @@ export interface BusinessResponse {
   providedIn: 'root'
 })
 export class BusinessSearchService {
-  private baseUrl = '/api';
+  //private baseUrl = '/api';
+  private baseUrl = 'http://nerds21.redmond.corp.microsoft.com:9000/api';
 
   constructor(private http: HttpClient) {}
 
@@ -49,8 +50,8 @@ export class BusinessSearchService {
     return this.http.get<Business[]>(`${this.baseUrl}/bizlist?zipcode=${zipcode}`);
   }
 
-  getBusinessByCity(city: string, zipcodes: string[]): Observable<any> {
-    const zipQuery = zipcodes.join(',');
+  getBusinessByZipcodes(zipcodes: string[]): Observable<any> {
+    const zipQuery = JSON.stringify(zipcodes);
     return this.http.get<Business[]>(`${this.baseUrl}/bizlist?zipcodes=${zipQuery}`);
   }
 
