@@ -14,24 +14,20 @@ export class TreeBuildingService {
     const categoryBusinessCounts: Map<string, Set<string>> = new Map();
 
     businesses.forEach(business => {
-      if (!business.category || business.category === 'Other') return;
-      
-      // Split category path like "Shopping > Fashion > Shoes" back into array
-      const categoryParts = business.category.split(' > ').map(part => part.toLowerCase());
-      
-      // Add business to each level of the category path
-      for (let i = 1; i <= categoryParts.length; i++) {
-        const pathKey = categoryParts.slice(0, i).join(' > ');
+      business.categories.forEach(category=>{
+        // Add business to each level of the category path
+        for (let i = 1; i <= category.length; i++) {
+          const pathKey = category.slice(0, i).join(' > ');
         
-        if (!categoryBusinessCounts.has(pathKey)) {
-          categoryBusinessCounts.set(pathKey, new Set());
+          if (!categoryBusinessCounts.has(pathKey)) {
+            categoryBusinessCounts.set(pathKey, new Set());
+          }
+          // Use yelpUrl as unique identifier for counting
+          if (business.yelpUrl) {
+            categoryBusinessCounts.get(pathKey)!.add(business.yelpUrl);
+          }
         }
-        
-        // Use yelpUrl as unique identifier for counting
-        if (business.yelpUrl) {
-          categoryBusinessCounts.get(pathKey)!.add(business.yelpUrl);
-        }
-      }
+      });      
     });
 
     // Build tree structure with accurate counts

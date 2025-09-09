@@ -54,22 +54,24 @@ export class App {
     const categoryPath = this.selectedCategoryPath();
     
     if (categoryPath.length === 0) {
-      // When no category is selected, show all businesses with deduplication and combined categories
-      return this.deduplicateBusinesses(allBusinesses.map(business => this.decodeBusinessName(business)))
+      // When no category is selected, show all businesses
+      return allBusinesses.map(business => this.decodeBusinessName(business))
         .sort((a, b) => a.name.localeCompare(b.name));
     }
     
     const matchingBusinesses = allBusinesses.filter(business => {
-      const businessCategory = business.category || '';
-      const selectedPath = categoryPath.join(' > ');
-      
-      return businessCategory === selectedPath || 
+      business.categories.forEach(category =>{  
+        const businessCategory = category.join(' > ');
+        const selectedPath = categoryPath.join(' > ');
+        return businessCategory === selectedPath || 
              businessCategory.startsWith(selectedPath) ||
              this.matchesCategoryPath(businessCategory, categoryPath);
+      });
+      
     });
     
     // Deduplicate all filtered businesses
-    return this.deduplicateBusinesses(matchingBusinesses)
+    return matchingBusinesses
       .sort((a, b) => a.name.localeCompare(b.name));
   });
 
@@ -187,8 +189,8 @@ export class App {
   }
 
   private searchByZipcode(zipcode: string) {
-    this.apiCallInfo.set(`GET nerds21.redmond.corp.microsoft.com:9000/biz/categories?zipcode=${zipcode}`);
-    this.businessService.getCategoriesByZipcode(zipcode).subscribe({
+    this.apiCallInfo.set(`GET nerds21.redmond.corp.microsoft.com:9000/biz/bizlist?zipcode=${zipcode}`);
+    this.businessService.getBusinessByZipcode(zipcode).subscribe({
       next: (data) => {
         this.processApiResponse(data);
       },
@@ -246,12 +248,12 @@ export class App {
   private aggregateZipCodeResults(zipcodes: string[]) {
     // Display what we want the API to support in the future
     const zipcodesJson = JSON.stringify(zipcodes);
-    this.apiCallInfo.set(`GET nerds21.redmond.corp.microsoft.com:9000/biz/categories?zipcodes=${zipcodesJson}`);
+    this.apiCallInfo.set(`GET nerds21.redmond.corp.microsoft.com:9000/api/bizlist?zipcodes=${zipcodesJson}`);
     const allResponses: any[] = [];
     let completedRequests = 0;
     
     zipcodes.forEach(zipcode => {
-      this.businessService.getCategoriesByZipcode(zipcode).subscribe({
+      this.businessService.getBusinessByZipcode(zipcode).subscribe({
         next: (data) => {
           console.log(`Response for ${zipcode}:`, data);
           if (data && data.businesses) {
@@ -277,76 +279,35 @@ export class App {
     });
   }
 
-  private mergeApiResponses(responses: any[]) {
-    const mergedBusinesses: any = {};
+  private mergeApiResponses(responses: Business[][]) {
+    const mergedBusinesses: Business[] = [];
     
-    responses.forEach(response => {
+    responses.forEach(response  => {
       // Merge businesses data
-      if (response.businesses && typeof response.businesses === 'object') {
-        Object.keys(response.businesses).forEach(key => {
-          if (!mergedBusinesses[key]) {
-            mergedBusinesses[key] = response.businesses[key];
-          }
-        });
-      }
+      response.forEach(biz =>{
+        mergedBusinesses.push(biz);
+      });
     });
     
-    const mergedResponse = {
-      businesses: mergedBusinesses
-    };
-    
-    console.log('Merged response:', mergedResponse);
-    this.processApiResponse(mergedResponse);
+    this.processApiResponse(mergedBusinesses);
   }
 
-  private processApiResponse(data: any) {
+  private processApiResponse(data: Business[]) {
     console.log('API Response:', data);
     console.log('Response type:', typeof data);
-    console.log('Keys:', Object.keys(data || {}));
     
-    let businesses: Business[] = [];
-
-    if (data && typeof data === 'object') {
-      // Handle businesses format - this has the full business data
-      if (data.businesses && typeof data.businesses === 'object' && !Array.isArray(data.businesses)) {
-        console.log('Processing businesses object:', Object.keys(data.businesses).length, 'businesses');
-        const businessesFromData: Business[] = [];
-        
-        Object.keys(data.businesses).forEach(yelpUrl => {
-          const businessData = data.businesses[yelpUrl];
-          const categoryPaths = this.formatCategories(businessData.categories);
-          
-          // Create separate business entry for each category path
-          categoryPaths.forEach(categoryPath => {
-            businessesFromData.push({
-              name: businessData.name || 'Unknown Business',
-              category: categoryPath,
-              address: businessData.address,
-              webDomain: businessData.webDomain,
-              description: businessData.description,
-              rating: businessData.rating,
-              reviewCount: businessData.reviewCount,
-              cityState: businessData.cityState,
-              country: businessData.country,
-              isClosed: businessData.isClosed,
-              yelpUrl: yelpUrl
-            });
-          });
-        });
-        
-        businesses = [...businesses, ...businessesFromData];
-        console.log('Processed businesses with domains:', businessesFromData.filter(b => b.webDomain).length);
-        console.log('Processed businesses with descriptions:', businessesFromData.filter(b => b.description).length);
-        console.log('Total business entries (with duplicates):', businessesFromData.length);
-      } else if (Array.isArray(data.businesses)) {
-        businesses = [...businesses, ...data.businesses];
-      }
-    } else {
-      console.error('Unexpected data structure:', data);
-    }
+    let allBusiness:Business[] =[];
+    data.forEach(biz=>{
+      biz.name=biz.name || 'Unknown Business';   
+      allBusiness.push(this.decodeBusinessName(biz));
+    });
+    
+    console.log('Processed businesses with domains:', allBusiness.filter(b => b.webDomain).length);
+    console.log('Processed businesses with descriptions:', allBusiness.filter(b => b.description).length);
+    console.log('Total business entries (no duplicates):', allBusiness.length);
 
     // Keep all business entries (including duplicates across categories) but clean invalid entries
-    const cleanedBusinesses = this.cleanBusinesses(businesses);
+    const cleanedBusinesses = this.cleanBusinesses(allBusiness);
     
     // Build category tree based on businesses data only
     const categories = this.treeService.buildCategoryTreeFromBusinesses(cleanedBusinesses);
@@ -364,35 +325,6 @@ export class App {
       // Keep all businesses but filter out invalid ones
       return business.name && business.name !== 'Unknown Business' && business.yelpUrl;
     });
-  }
-
-  private deduplicateBusinesses(businesses: Business[]): Business[] {
-    const businessMap = new Map<string, Business>();
-    
-    businesses.forEach(business => {
-      const decodedBusiness = this.decodeBusinessName(business);
-      const key = decodedBusiness.yelpUrl || `${decodedBusiness.name}-${decodedBusiness.address || 'no-address'}`;
-      
-      if (businessMap.has(key)) {
-        // Combine category paths for same business
-        const existingBusiness = businessMap.get(key)!;
-        const existingCategories = existingBusiness.category || '';
-        const newCategory = decodedBusiness.category || '';
-        
-        // Split existing and new categories properly and combine without duplicates
-        const existingCatArray = existingCategories.split(', ').filter(cat => cat.trim());
-        const newCatArray = newCategory.split(', ').filter(cat => cat.trim());
-        
-        const categoriesSet = new Set([...existingCatArray, ...newCatArray]);
-        
-        // Sort categories alphabetically and join with commas
-        existingBusiness.category = Array.from(categoriesSet).sort().join(', ');
-      } else {
-        businessMap.set(key, decodedBusiness);
-      }
-    });
-    
-    return Array.from(businessMap.values());
   }
 
   private decodeHtmlEntities(text: string): string {
@@ -532,7 +464,7 @@ export class App {
     this.modalService.openHtmlViewer(business);
   }
 
-  private formatCategories(categories: string[][]): string[] {
+  formatCategories(categories: string[][]): string[] {
     if (!categories || !Array.isArray(categories) || categories.length === 0) return ['Other'];
     
     // Return all category paths so businesses can appear in multiple categories

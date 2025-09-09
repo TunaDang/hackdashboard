@@ -17,7 +17,7 @@ export interface Category {
 
 export interface Business {
   name: string;
-  category: string;
+  categories: string[][];
   address?: string;
   webDomain?: string;
   description?: string;
@@ -45,13 +45,13 @@ export class BusinessSearchService {
     return this.http.get<ZipCity[]>(`${this.baseUrl}/zipcities`);
   }
 
-  getCategoriesByZipcode(zipcode: string): Observable<any> {
-    return this.http.get<any>(`${this.baseUrl}/categories?zipcode=${zipcode}`);
+  getBusinessByZipcode(zipcode: string): Observable<any> {
+    return this.http.get<Business[]>(`${this.baseUrl}/bizlist?zipcode=${zipcode}`);
   }
 
-  getCategoriesByCity(city: string, zipcodes: string[]): Observable<any> {
+  getBusinessByCity(city: string, zipcodes: string[]): Observable<any> {
     const zipQuery = zipcodes.join(',');
-    return this.http.get<any>(`${this.baseUrl}/categories?zipcode=${zipQuery}`);
+    return this.http.get<Business[]>(`${this.baseUrl}/bizlist?zipcodes=${zipQuery}`);
   }
 
   getBusinessData(yelpId: string): Observable<any> {

@@ -76,7 +76,7 @@
                 <mat-card class="business-card">
                   <mat-card-header>
                     <mat-card-title>{{ business.name }}</mat-card-title>
-                    <mat-card-subtitle>{{ business.category }}</mat-card-subtitle>
+                    <mat-card-subtitle>{{formatCategories(business.categories).join(", ") }}</mat-card-subtitle>
                   </mat-card-header>
                   <mat-card-content>
                     @if (business.address) {
