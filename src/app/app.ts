@@ -189,7 +189,7 @@ export class App {
   }
 
   private searchByZipcode(zipcode: string) {
-    this.apiCallInfo.set(`GET nerds21.redmond.corp.microsoft.com:9000/biz/bizlist?zipcode=${zipcode}`);
+    this.apiCallInfo.set(`GET nerds21.redmond.corp.microsoft.com:9000/api/bizlist?zipcode=${zipcode}`);
     this.businessService.getBusinessByZipcode(zipcode).subscribe({
       next: (data) => {
         this.processApiResponse(data);
@@ -308,7 +308,8 @@ export class App {
 
     // Keep all business entries (including duplicates across categories) but clean invalid entries
     const cleanedBusinesses = this.cleanBusinesses(allBusiness);
-    
+    console.log("cleaned businesses: ",cleanedBusinesses.length);
+
     // Build category tree based on businesses data only
     const categories = this.treeService.buildCategoryTreeFromBusinesses(cleanedBusinesses);
     
